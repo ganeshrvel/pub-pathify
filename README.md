@@ -31,6 +31,8 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 * No implicit normalization or cleanup
 * Safe for non-UTF-8 filenames
 * Data can be passed around without losing fidelity
+* Automatically detects the host platform or allows manual override to work with a different OS behavior
+* Cross-platform support including Linux, Windows, Android, iOS, and macOS
 * Does not rely on Dart’s built-in path libraries at all
 
 ---
@@ -39,6 +41,7 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 
 * Cross-platform path parsing (POSIX and Windows)
 * Byte-level path representation
+* Automatic platform detection with optional manual override
 * Full Windows prefix support
 * Unicode-safe including emoji and foreign scripts
 * No normalization or mutation of input
@@ -256,7 +259,7 @@ Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
 
 * This is a translation of Rust’s `std::path` into Dart
 * The translation was done using Claude
-* The library is backed by around 600 tests that currently pass
+* The library is backed by around 850+ tests that currently pass
 * There may still be edge cases or bugs
 * Behavior may differ from Dart’s standard path libraries. If you notice deviations or unexpected behavior, please raise an issue or PR
 * Please feel free to open an issue or raise a PR if you find something
