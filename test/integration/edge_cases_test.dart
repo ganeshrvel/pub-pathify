@@ -166,23 +166,21 @@ void main() {
   // implementation in `path.dart`). This is a deliberate divergence — the
   // test below pins the pathify behavior so the divergence is explicit.
 
-  //todo
-  group('test_extension_path_sep_alternate (POSIX, pathify behavior)', () {
+  group('test_extension_path_sep_alternate (POSIX, rust behavior)', () {
     usePosix();
 
     test(
-      r'setExtension with "\" on POSIX throws ArgumentError on pathify',
+      r'setExtension with "\" is allowed on POSIX',
       () {
         final p = PathBuf.fromBytes(b('path/to/file'));
         expect(
           () => p.setExtension(cuN(r'd\test')),
-          throwsArgumentError,
+          returnsNormally,
         );
+
+        final out = p.withExtension(cuN(r'd\test'));
+        expect(cuStr(out.codeUnits), equals(r'path/to/file.d\test'));
       },
-      skip:
-          r'Pathify diverges from Rust here: pathify rejects "\" on every '
-          'platform; Rust accepts it on POSIX as a filename char. Re-enable '
-          'and swap to expecting success once pathify matches Rust POSIX.',
     );
   });
 }

@@ -150,68 +150,57 @@ void main() {
   // so the divergence from Rust is explicit. If pathify is later updated
   // to match Rust exactly, these tests should be tightened.
 
-  group('test_parse_prefix_verbatim_device (pathify behavior)', () {
-    //todo
+  group('test_parse_prefix_verbatim_device (rust behavior)', () {
     test(
-      '//?/C: /tail parses as VerbatimDisk(C) on pathify',
+      '//?/C:/... parses as UNC("?", "C:")',
       () {
         final p = WindowsPrefix.parsePrefix(
           cuN('//?/C:/windows/system32/notepad.exe'),
         );
-        expect(p, isA<VerbatimDisk>());
-        expect((p! as VerbatimDisk).drive, equals(0x43));
+        expect(p, isA<UNC>());
+        final u = p! as UNC;
+        expect(cuStr(u.server), equals('?'));
+        expect(cuStr(u.share), equals('C:'));
       },
-      skip:
-          'Pathify diverges from Rust here: parses as VerbatimDisk(C); '
-          'Rust parses as UNC("?", "C:"). Re-enable once pathify matches.',
     );
 
-    //todo
-
     test(
-      '//?/C: with backslash tail parses as VerbatimDisk(C) on pathify',
+      r'//?/C:\... parses as UNC("?", "C:")',
       () {
         final p = WindowsPrefix.parsePrefix(
           cuN(r'//?/C:\windows\system32\notepad.exe'),
         );
-        expect(p, isA<VerbatimDisk>());
-        expect((p! as VerbatimDisk).drive, equals(0x43));
+        expect(p, isA<UNC>());
+        final u = p! as UNC;
+        expect(cuStr(u.server), equals('?'));
+        expect(cuStr(u.share), equals('C:'));
       },
-      skip:
-          'Pathify diverges from Rust here: parses as VerbatimDisk(C); '
-          'Rust parses as UNC("?", "C:"). Re-enable once pathify matches.',
     );
 
-    //todo
-
     test(
-      r'/\?\C: parses as VerbatimDisk(C) on pathify',
+      r'/\?\C:\... parses as UNC("?", "C:")',
       () {
         final p = WindowsPrefix.parsePrefix(
           cuN(r'/\?\C:\windows\system32\notepad.exe'),
         );
-        expect(p, isA<VerbatimDisk>());
-        expect((p! as VerbatimDisk).drive, equals(0x43));
+        expect(p, isA<UNC>());
+        final u = p! as UNC;
+        expect(cuStr(u.server), equals('?'));
+        expect(cuStr(u.share), equals('C:'));
       },
-      skip:
-          'Pathify diverges from Rust here: parses as VerbatimDisk(C); '
-          'Rust parses as UNC("?", "C:"). Re-enable once pathify matches.',
     );
 
-    //todo
-
     test(
-      r'\\?/ C: parses as VerbatimDisk(C) on pathify',
+      r'\\?/C:\... parses as UNC("?", "C:")',
       () {
         final p = WindowsPrefix.parsePrefix(
           cuN(r'\\?/C:\windows\system32\notepad.exe'),
         );
-        expect(p, isA<VerbatimDisk>());
-        expect((p! as VerbatimDisk).drive, equals(0x43));
+        expect(p, isA<UNC>());
+        final u = p! as UNC;
+        expect(cuStr(u.server), equals('?'));
+        expect(cuStr(u.share), equals('C:'));
       },
-      skip:
-          'Pathify diverges from Rust here: parses as VerbatimDisk(C); '
-          'Rust parses as UNC("?", "C:"). Re-enable once pathify matches.',
     );
   });
 

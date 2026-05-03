@@ -611,12 +611,19 @@ final class PathBuf {
   }
 
   static void _validateExtension(CodeUnits ext) {
+    final isWindows = Pathify.instance.isWindows();
+
     for (var i = 0; i < ext.length; i++) {
       final b = ext[i];
-      if (UnixStyle.isSepByte(b) || WindowsStyle.isSepByte(b)) {
-        throw ArgumentError(
-          'extension cannot contain path separators',
-        );
+
+      if (isWindows) {
+        if (WindowsStyle.isSepByte(b)) {
+          throw ArgumentError('extension cannot contain path separators');
+        }
+      } else {
+        if (UnixStyle.isSepByte(b)) {
+          throw ArgumentError('extension cannot contain path separators');
+        }
       }
     }
   }

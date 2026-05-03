@@ -38,7 +38,7 @@ class WindowsPrefix {
       // Path begins with `\\`. Branch on the next two characters to decide
       // between verbatim (`?\`), device namespace (`.\`), and UNC.
       final afterVerb = afterTwoBack.stripPrefix(r'?\');
-      if (afterVerb != null) {
+      if (afterVerb != null && _isExactVerbatimPrefix(path)) {
         // Path begins with `\\?\`.
         final afterUnc = afterVerb.stripPrefix(r'UNC\');
         if (afterUnc != null) {
@@ -130,9 +130,9 @@ class WindowsPrefix {
   /// Returns a `(component, remainder)` pair where both views are slices
   /// of the original storage — non-ASCII code units are preserved.
   static (CodeUnits, CodeUnits) parseNextComponent(
-      CodeUnits path, {
-        required bool verbatim,
-      }) {
+    CodeUnits path, {
+    required bool verbatim,
+  }) {
     bool isSep(int b) {
       if (verbatim) return b == PathBytes.backslash;
       return b == PathBytes.backslash || b == PathBytes.slash;
@@ -150,9 +150,9 @@ class WindowsPrefix {
 /// Top-level alias so callers in this library can use the same name without
 /// reaching through [WindowsPrefix].
 (CodeUnits, CodeUnits) parseNextComponent(
-    CodeUnits path, {
-      required bool verbatim,
-    }) => WindowsPrefix.parseNextComponent(path, verbatim: verbatim);
+  CodeUnits path, {
+  required bool verbatim,
+}) => WindowsPrefix.parseNextComponent(path, verbatim: verbatim);
 
 /// Internal helper that owns the lookup-window buffer.
 ///
@@ -217,4 +217,12 @@ class _PrefixParserSlice {
 
   /// Returns the source code units that remain after the cursor.
   CodeUnits finish() => path.sublistView(index);
+}
+
+bool _isExactVerbatimPrefix(CodeUnits path) {
+  if (path.length < 4) return false;
+  return path[0] == PathBytes.backslash &&
+      path[1] == PathBytes.backslash &&
+      path[2] == PathBytes.question &&
+      path[3] == PathBytes.backslash;
 }
