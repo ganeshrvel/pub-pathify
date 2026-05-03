@@ -83,6 +83,8 @@ final class PathBuf {
   /// Decodes the path as a Dart [String] when the code units are valid
   /// Unicode, otherwise returns `null`.
   String? toStr() {
+    if (_hasForbiddenUnits()) return null;
+
     if (_units is NarrowCodeUnits) {
       try {
         return utf8.decode(
@@ -140,6 +142,22 @@ final class PathBuf {
       }
     }
     return out.toString();
+  }
+
+  bool _hasForbiddenUnits() {
+    if (_units is NarrowCodeUnits) {
+      final bytes = (_units as NarrowCodeUnits).toTypedData();
+      for (var i = 0; i < bytes.length; i++) {
+        if (bytes[i] == 0) return true;
+      }
+      return false;
+    }
+
+    final wide = (_units as WideCodeUnits).toTypedData();
+    for (var i = 0; i < wide.length; i++) {
+      if (wide[i] == 0) return true;
+    }
+    return false;
   }
 
   // ── Storage access ───────────────────────────────────────────────────

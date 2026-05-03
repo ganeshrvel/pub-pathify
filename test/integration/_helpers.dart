@@ -224,8 +224,8 @@ void tfn({
   required String expected,
   required bool isWindows,
 }) {
-  final p = isWindows ? PathBuf.fromBytes(w(path)) : PathBuf.fromBytes(b(path));
-  p.setFileName(cuFor(file, isWindows: isWindows));
+  final p = isWindows ? PathBuf.fromBytes(w(path)) : PathBuf.fromBytes(b(path))
+    ..setFileName(cuFor(file, isWindows: isWindows));
   expect(
     pStr(p),
     equals(expected),

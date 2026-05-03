@@ -1,14 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:pathify/pathify.dart';
 import 'package:pathify/src/sys/path/windows_prefix.dart';
 import 'package:test/test.dart';
 
 import 'integration/_helpers.dart';
-
-Uint8List _b(String s) => Uint8List.fromList(s.codeUnits);
-
-String _str(Uint8List b) => String.fromCharCodes(b);
 
 Components _unixComponents(String path) {
   final cu = cuN(path);
