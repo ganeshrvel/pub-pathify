@@ -43,7 +43,14 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 * Cross-platform path parsing (POSIX and Windows)
 * Byte-level path representation
 * Automatic platform detection with optional manual override
-* Full Windows prefix support
+* Full Windows prefix support:
+
+    * Disk
+    * UNC (Universal Naming Convention)
+    * DeviceNS (Device Namespace)
+    * Verbatim
+    * VerbatimUNC (Verbatim Universal Naming Convention)
+    * VerbatimDisk
 * Unicode-safe including emoji and foreign scripts
 * No normalization or mutation of input
 * Component-based parsing and operations
