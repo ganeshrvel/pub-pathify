@@ -795,19 +795,26 @@ int _componentHash(Component c) {
 
 int _prefixHash(Prefix p) {
   var h = p.runtimeType.hashCode;
+
   switch (p) {
     case Disk():
-      h = (h * 31 + p.drive) & 0x7FFFFFFF;
+      return (h * 31 + p.drive) & 0x7FFFFFFF;
+
     case VerbatimDisk():
-      h = (h * 31 + p.drive) & 0x7FFFFFFF;
+      return (h * 31 + p.drive) & 0x7FFFFFFF;
+
     case Verbatim():
       for (var i = 0; i < p.component.length; i++) {
         h = (h * 31 + p.component[i]) & 0x7FFFFFFF;
       }
+      return h;
+
     case DeviceNS():
       for (var i = 0; i < p.device.length; i++) {
         h = (h * 31 + p.device[i]) & 0x7FFFFFFF;
       }
+      return h;
+
     case UNC():
       for (var i = 0; i < p.server.length; i++) {
         h = (h * 31 + p.server[i]) & 0x7FFFFFFF;
@@ -815,6 +822,8 @@ int _prefixHash(Prefix p) {
       for (var i = 0; i < p.share.length; i++) {
         h = (h * 31 + p.share[i]) & 0x7FFFFFFF;
       }
+      return h;
+
     case VerbatimUNC():
       for (var i = 0; i < p.server.length; i++) {
         h = (h * 31 + p.server[i]) & 0x7FFFFFFF;
@@ -822,8 +831,8 @@ int _prefixHash(Prefix p) {
       for (var i = 0; i < p.share.length; i++) {
         h = (h * 31 + p.share[i]) & 0x7FFFFFFF;
       }
+      return h;
   }
-  return h;
 }
 
 class NormalizeError implements Exception {
