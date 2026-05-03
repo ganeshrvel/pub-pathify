@@ -8,7 +8,7 @@ It exists because Dart does not provide a complete or correct way to parse Windo
 
 This is a translation of Rust’s path module adapted for Dart, preserving the same core behavior and semantics. The translation was done using Claude. If you find any bugs or incomplete behavior, feel free to open an issue or raise a PR.
 
----
+
 
 ### Description
 
@@ -16,13 +16,13 @@ A byte-level, cross-platform path manipulation library for Dart, ported from Rus
 
 Operates on raw bytes (`Uint8List` on Unix, `Uint16List` on Windows) rather than strings. Correctly handles all Windows path prefix types including verbatim (`\\?\`), UNC, and device namespace (`\\.\`) paths. Suitable for paths containing non-UTF-8 filenames.
 
----
+
 
 ### Installation
 
 Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packages/pathify#-installing-tab-) for the latest version of **pathify**
 
----
+
 
 ### Key Benefits
 
@@ -36,7 +36,7 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 * Lightweight and minimal, no third party dependencies
 * Does not rely on Dart’s built-in path libraries at all
 
----
+
 
 ### Features
 
@@ -49,7 +49,7 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 * Component-based parsing and operations
 * Predictable and consistent behavior across platforms
 
----
+
 
 ### Windows Prefix Support
 
@@ -93,7 +93,7 @@ C:\path\to\file
 
 These are parsed correctly and exposed as structured prefix types instead of raw strings.
 
----
+
 
 ### Usage
 
