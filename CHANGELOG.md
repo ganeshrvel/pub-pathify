@@ -1,6 +1,6 @@
 ### Changelog
 
-#### 1.0.0+2
+#### 1.0.0+3
 
 * Byte-level path manipulation API (`PathBuf`)
 * Cross-platform support for POSIX and Windows paths

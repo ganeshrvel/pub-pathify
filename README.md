@@ -142,6 +142,46 @@ The key advantage here is that the path is stored and passed around as raw bytes
 This means the data remains untouched, unaltered, and not normalized or sanitized in any way.
 
 
+### `toStr()`
+
+Returns a Dart `String` only if the underlying bytes form valid Unicode.
+Returns `null` otherwise.
+
+```dart
+final p = PathBuf.fromStr('/tmp/file.txt');
+
+print(p.toStr()); // /tmp/file.txt
+```
+
+```dart 
+import 'dart:typed_data';
+
+final bytes = Uint8List.fromList([0x2F, 0xFF, 0x61]);
+final p = PathBuf.fromBytes(bytes);
+
+print(p.toStr()); // null (invalid UTF-8)
+```
+
+
+### `toStringLossy()`
+
+Always returns a `String`. Invalid sequences are replaced with `�`.
+
+```dart
+final p = PathBuf.fromStr('/tmp/🚀/file.txt');
+
+print(p.toStringLossy()); // /tmp/🚀/file.txt
+```
+
+```dart
+import 'dart:typed_data';
+
+final bytes = Uint8List.fromList([0x2F, 0xFF, 0x61]);
+final p = PathBuf.fromBytes(bytes);
+
+print(p.toStringLossy()); // "/�a"
+```
+
 
 ### Working with Components
 
@@ -154,7 +194,6 @@ for (final c in path.components().toList()) {
   }
 }
 ```
-
 
 
 ### Joining Paths
@@ -208,7 +247,6 @@ final path = PathBuf.fromStr(r'\\server\share\folder\file.txt');
 
 print(path.parent());
 ```
-
 
 
 ### No Normalization
@@ -265,6 +303,26 @@ Pathify.instance.overriddenPlatform = PathifyPlatform.iOS;
 Pathify.instance.overriddenPlatform = PathifyPlatform.fuchsia;
 ```
 
+
+### Some of the available APIs
+
+Pathify exposes a set of low-level, predictable APIs similar to Rust’s `std::path`:
+
+* `toStr()`
+* `toStringLossy()`
+* `isAbsolute()`
+* `isRelative()`
+* `parent()`
+* `ancestors()`
+* `join()`
+* `components()`
+* `fileName()`
+* `fileStem()`
+* `extension()`
+* `startsWith()`
+* `endsWith()`
+
+For the full API surface, check: [https://pub.dev/documentation/pathify/latest/pathify/](https://pub.dev/documentation/pathify/latest/pathify/)
 
 
 ### Notes
