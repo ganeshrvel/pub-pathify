@@ -1,6 +1,6 @@
-### Introduction
+# Pathify - Byte-level, cross-platform path manipulation for Dart
 
-##### Pathify - Byte-level, cross-platform path manipulation for Dart
+### Introduction
 
 **Pathify** is a byte-level, cross-platform path manipulation library for Dart, ported from Rust’s `std::path`.
 
@@ -103,7 +103,7 @@ Import the library
 import 'package:pathify/pathify.dart';
 ```
 
----
+
 
 ### From String
 
@@ -116,7 +116,7 @@ print(path.fileName());
 print(path.extension());
 ```
 
----
+
 
 ### From Bytes (Core Feature)
 
@@ -134,7 +134,7 @@ print(path.toStringLossy());
 The key advantage here is that the path is stored and passed around as raw bytes.
 This means the data remains untouched, unaltered, and not normalized or sanitized in any way.
 
----
+
 
 ### Working with Components
 
@@ -148,7 +148,7 @@ for (final c in path.components().toList()) {
 }
 ```
 
----
+
 
 ### Joining Paths
 
@@ -159,7 +159,7 @@ final full = base.join(PathBuf.fromStr('docs/readme.md'));
 print(full.toStringLossy());
 ```
 
----
+
 
 ### Emoji and Unicode Paths
 
@@ -170,7 +170,7 @@ print(path.parent());
 print(path.fileName());
 ```
 
----
+
 
 ### Foreign Language Paths
 
@@ -181,7 +181,7 @@ print(path.parent());
 print(path.fileName());
 ```
 
----
+
 
 ### Windows Paths
 
@@ -192,7 +192,7 @@ print(path.parent());
 print(path.fileName());
 ```
 
----
+
 
 ### UNC Paths
 
@@ -202,7 +202,7 @@ final path = PathBuf.fromStr(r'\\server\share\folder\file.txt');
 print(path.parent());
 ```
 
----
+
 
 ### No Normalization
 
@@ -242,7 +242,7 @@ print(p.toStringLossy());
 // but original bytes are preserved internally
 ```
 
----
+
 
 ### Platform Behavior
 
@@ -254,7 +254,7 @@ Pathify.instance.overriddenPlatform = PathifyPlatform.linux;
 Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
 ```
 
----
+
 
 ### Notes
 
@@ -267,7 +267,7 @@ Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
 * No normalization is performed. Paths are preserved exactly as provided
 
 
----
+
 
 ### Limitations
 
@@ -278,14 +278,14 @@ Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
 
 Please feel free to reach out via the repository.
 
----
+
 
 ### About
 
 * Package URL: [https://pub.dev/packages/pathify](https://pub.dev/packages/pathify)
 * Repo URL: [https://github.com/ganeshrvel/pub-pathify](https://github.com/ganeshrvel/pub-pathify)
 
----
+
 
 ### License
 
