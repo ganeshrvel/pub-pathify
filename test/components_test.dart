@@ -4,24 +4,26 @@ import 'package:pathify/pathify.dart';
 import 'package:pathify/src/sys/path/windows_prefix.dart';
 import 'package:test/test.dart';
 
+import 'integration/_helpers.dart';
+
 Uint8List _b(String s) => Uint8List.fromList(s.codeUnits);
 
 String _str(Uint8List b) => String.fromCharCodes(b);
 
 Components _unixComponents(String path) {
-  final bytes = _b(path);
+  final cu = cuN(path);
   return Components.start(
-    pathBytes: bytes,
+    pathBytes: cu,
     prefix: null,
     isWindows: false,
   );
 }
 
 Components _windowsComponents(String path) {
-  final bytes = _b(path);
+  final cu = cuN(path);
   return Components.start(
-    pathBytes: bytes,
-    prefix: WindowsPrefix.parsePrefix(bytes),
+    pathBytes: cu,
+    prefix: WindowsPrefix.parsePrefix(cu),
     isWindows: true,
   );
 }
@@ -33,16 +35,16 @@ void main() {
       final list = c.toList();
       expect(list, hasLength(3));
       expect(list[0], isA<ComponentRootDir>());
-      expect((list[1] as ComponentNormal).value.let(_str), 'tmp');
-      expect((list[2] as ComponentNormal).value.let(_str), 'foo.txt');
+      expect(cuStr((list[1] as ComponentNormal).value), 'tmp');
+      expect(cuStr((list[2] as ComponentNormal).value), 'foo.txt');
     });
 
     test('relative path with leading dot is preserved as CurDir', () {
       final c = _unixComponents('./tmp/foo');
       final list = c.toList();
       expect(list[0], isA<ComponentCurDir>());
-      expect((list[1] as ComponentNormal).value.let(_str), 'tmp');
-      expect((list[2] as ComponentNormal).value.let(_str), 'foo');
+      expect(cuStr((list[1] as ComponentNormal).value), 'tmp');
+      expect(cuStr((list[2] as ComponentNormal).value), 'foo');
     });
 
     test('repeated separators are collapsed', () {
@@ -50,7 +52,7 @@ void main() {
       final names = c
           .toList()
           .whereType<ComponentNormal>()
-          .map((n) => _str(n.value))
+          .map((n) => cuStr(n.value))
           .toList();
       expect(names, ['tmp', 'foo', 'bar']);
     });
@@ -59,7 +61,7 @@ void main() {
       final c = _unixComponents('/tmp/foo/');
       final list = c.toList();
       expect(list.last, isA<ComponentNormal>());
-      expect((list.last as ComponentNormal).value.let(_str), 'foo');
+      expect(cuStr((list.last as ComponentNormal).value), 'foo');
     });
 
     test('parent directory is preserved', () {
@@ -89,8 +91,8 @@ void main() {
       final list = c.toList();
       expect(list[0], isA<ComponentPrefix>());
       expect(list[1], isA<ComponentRootDir>());
-      expect((list[2] as ComponentNormal).value.let(_str), 'Users');
-      expect((list[3] as ComponentNormal).value.let(_str), 'Orange');
+      expect(cuStr((list[2] as ComponentNormal).value), 'Users');
+      expect(cuStr((list[3] as ComponentNormal).value), 'Orange');
     });
 
     test('drive without root is relative', () {
@@ -106,7 +108,7 @@ void main() {
       final list = c.toList();
       expect(list[0], isA<ComponentPrefix>());
       expect(list[1], isA<ComponentRootDir>());
-      expect((list[2] as ComponentNormal).value.let(_str), 'file');
+      expect(cuStr((list[2] as ComponentNormal).value), 'file');
     });
 
     test('verbatim disk path', () {
@@ -115,7 +117,7 @@ void main() {
       expect(list[0], isA<ComponentPrefix>());
       // Verbatim disk has a physical root after the prefix.
       expect(list[1], isA<ComponentRootDir>());
-      expect((list[2] as ComponentNormal).value.let(_str), 'Windows');
+      expect(cuStr((list[2] as ComponentNormal).value), 'Windows');
     });
 
     test(
@@ -131,7 +133,7 @@ void main() {
         expect(list[0], isA<ComponentPrefix>());
         final pfx = (list[0] as ComponentPrefix).parsed;
         expect(pfx, isA<Verbatim>());
-        expect(_str((pfx as Verbatim).component), 'foo/bar');
+        expect(cuStr((pfx as Verbatim).component), 'foo/bar');
       },
     );
 
@@ -149,7 +151,7 @@ void main() {
         expect(list[1], isA<ComponentRootDir>());
         final body = list
             .whereType<ComponentNormal>()
-            .map((n) => _str(n.value))
+            .map((n) => cuStr(n.value))
             .toList();
         expect(body, ['foo/bar', 'baz']);
       },
@@ -160,7 +162,7 @@ void main() {
       final names = c
           .toList()
           .whereType<ComponentNormal>()
-          .map((n) => _str(n.value))
+          .map((n) => cuStr(n.value))
           .toList();
       expect(names, ['Users', 'Orange']);
     });
@@ -172,7 +174,7 @@ void main() {
       final reversed = c.toListReversed();
       final names = reversed
           .whereType<ComponentNormal>()
-          .map((n) => _str(n.value))
+          .map((n) => cuStr(n.value))
           .toList();
       expect(names, ['bar.txt', 'foo', 'tmp']);
     });
@@ -180,16 +182,12 @@ void main() {
     test('mixing next and nextBack consumes from both ends', () {
       final c = _unixComponents('/a/b/c/d');
       expect(c.next(), isA<ComponentRootDir>());
-      expect((c.next()! as ComponentNormal).value.let(_str), 'a');
-      expect((c.nextBack()! as ComponentNormal).value.let(_str), 'd');
-      expect((c.nextBack()! as ComponentNormal).value.let(_str), 'c');
-      expect((c.next()! as ComponentNormal).value.let(_str), 'b');
+      expect(cuStr((c.next()! as ComponentNormal).value), 'a');
+      expect(cuStr((c.nextBack()! as ComponentNormal).value), 'd');
+      expect(cuStr((c.nextBack()! as ComponentNormal).value), 'c');
+      expect(cuStr((c.next()! as ComponentNormal).value), 'b');
       expect(c.next(), isNull);
       expect(c.nextBack(), isNull);
     });
   });
-}
-
-extension on Uint8List {
-  T let<T>(T Function(Uint8List) fn) => fn(this);
 }

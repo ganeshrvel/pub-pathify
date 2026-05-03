@@ -1,18 +1,21 @@
-import 'dart:typed_data';
-
+import 'package:pathify/src/code_units.dart';
 import 'package:pathify/src/path_bytes.dart';
 import 'package:pathify/src/prefix.dart';
 
 /// Windows prefix parser.
 ///
-/// The parser inspects the leading bytes of a path and identifies one of the
-/// six prefix forms (verbatim, verbatim UNC, verbatim disk, device namespace,
-/// UNC, or plain disk) — or returns `null` when no prefix is present.
+/// The parser inspects the leading code units of a path and identifies one
+/// of the six prefix forms (verbatim, verbatim UNC, verbatim disk, device
+/// namespace, UNC, or plain disk) — or returns `null` when no prefix is
+/// present.
 ///
-/// The matcher operates on a normalized copy of the first eight code units,
-/// where `/` is treated as `\`, so that prefix detection succeeds regardless
-/// of which separator the caller used. The original path bytes are never
-/// modified; normalization is confined to the lookup window.
+/// The matcher operates on a normalized lookup window over the first
+/// eight code units, where `/` is treated as `\`, so prefix detection
+/// succeeds regardless of which separator the caller used. The original
+/// path code units are never modified; normalization is confined to the
+/// lookup window. All data extracted as variant payloads (server names,
+/// device names, the verbatim component) is sliced from the original
+/// [CodeUnits] storage so non-ASCII code units flow through verbatim.
 class WindowsPrefix {
   WindowsPrefix._();
 
@@ -27,7 +30,7 @@ class WindowsPrefix {
   ///
   /// Returns one of the [Prefix] subclasses describing the prefix found, or
   /// `null` when the path does not begin with a recognizable prefix.
-  static Prefix? parsePrefix(Uint8List path) {
+  static Prefix? parsePrefix(CodeUnits path) {
     final parser = _PrefixParser._build(path, _lookupWindow).asSlice();
 
     final afterTwoBack = parser.stripPrefix(r'\\');
@@ -98,7 +101,7 @@ class WindowsPrefix {
   /// uppercase ASCII.
   ///
   /// Returns `null` when [path] does not begin with `<letter>:`.
-  static int? _parseDrive(Uint8List path) {
+  static int? _parseDrive(CodeUnits path) {
     if (path.length < 2) return null;
     final drive = path[0];
     if (path[1] != PathBytes.colon) return null;
@@ -112,7 +115,7 @@ class WindowsPrefix {
   /// Used inside verbatim contexts where the drive prefix must be exactly
   /// two characters: a letter followed by `:`. Anything else immediately
   /// after — except a separator or end of path — disqualifies the match.
-  static int? _parseDriveExact(Uint8List path) {
+  static int? _parseDriveExact(CodeUnits path) {
     if (path.length >= 3) {
       final third = path[2];
       if (third != PathBytes.backslash && third != PathBytes.slash) {
@@ -124,20 +127,12 @@ class WindowsPrefix {
 
   /// Splits off the next path component.
   ///
-  /// Returns a record of `(component, remainder)` where `component` contains
-  /// the bytes up to the first separator and `remainder` contains the bytes
-  /// after it. When no separator is found, `component` is the whole input
-  /// and `remainder` is empty.
-  ///
-  /// In verbatim mode only `\` counts as a separator. Otherwise both `\` and
-  /// `/` are recognized.
-  ///
-  /// Exposed at library scope because the components iterator (in `path.dart`)
-  /// uses the same splitting rule when iterating verbatim paths.
-  static (Uint8List, Uint8List) parseNextComponent(
-    Uint8List path, {
-    required bool verbatim,
-  }) {
+  /// Returns a `(component, remainder)` pair where both views are slices
+  /// of the original storage — non-ASCII code units are preserved.
+  static (CodeUnits, CodeUnits) parseNextComponent(
+      CodeUnits path, {
+        required bool verbatim,
+      }) {
     bool isSep(int b) {
       if (verbatim) return b == PathBytes.backslash;
       return b == PathBytes.backslash || b == PathBytes.slash;
@@ -145,37 +140,32 @@ class WindowsPrefix {
 
     for (var i = 0; i < path.length; i++) {
       if (isSep(path[i])) {
-        final component = Uint8List.sublistView(path, 0, i);
-        final rest = Uint8List.sublistView(path, i + 1);
-        return (component, rest);
+        return (path.sublistView(0, i), path.sublistView(i + 1));
       }
     }
-    return (path, Uint8List(0));
+    return (path, path.emptyOfSameWidth());
   }
 }
 
 /// Top-level alias so callers in this library can use the same name without
 /// reaching through [WindowsPrefix].
-Uint8List _ = Uint8List(0); // ignore: unused_element
-(Uint8List, Uint8List) parseNextComponent(
-  Uint8List path, {
-  required bool verbatim,
-}) => WindowsPrefix.parseNextComponent(path, verbatim: verbatim);
+(CodeUnits, CodeUnits) parseNextComponent(
+    CodeUnits path, {
+      required bool verbatim,
+    }) => WindowsPrefix.parseNextComponent(path, verbatim: verbatim);
 
 /// Internal helper that owns the lookup-window buffer.
 ///
-/// The buffer is a copy of the first N source bytes with each `/` replaced
-/// by `\`. Prefix matching against this buffer therefore succeeds whether
-/// the caller used `\\?\C:` or `//?/C:`. The original path bytes are never
-/// modified.
+/// The window is a list of integers — one entry per source code unit —
+/// where every `/` has been replaced by `\`. Prefix matching against this
+/// list succeeds regardless of which separator the caller used. The
+/// original [CodeUnits] are never modified.
 class _PrefixParser {
   _PrefixParser._raw(this.path, this.window);
 
-  /// Builds a parser over [path] using a lookup window of [windowLen]
-  /// code units.
-  factory _PrefixParser._build(Uint8List path, int windowLen) {
-    final window = Uint8List(windowLen);
+  factory _PrefixParser._build(CodeUnits path, int windowLen) {
     final n = path.length < windowLen ? path.length : windowLen;
+    final window = List<int>.filled(n, 0);
     for (var i = 0; i < n; i++) {
       final ch = path[i];
       window[i] = ch == PathBytes.slash ? PathBytes.backslash : ch;
@@ -183,18 +173,12 @@ class _PrefixParser {
     return _PrefixParser._raw(path, window);
   }
 
-  final Uint8List path;
-  final Uint8List window;
+  final CodeUnits path;
+  final List<int> window;
 
   /// Returns a movable cursor positioned at the start of the lookup window.
-  _PrefixParserSlice asSlice() {
-    final actualLen = window.length < path.length ? window.length : path.length;
-    return _PrefixParserSlice(
-      path: path,
-      window: Uint8List.sublistView(window, 0, actualLen),
-      index: 0,
-    );
-  }
+  _PrefixParserSlice asSlice() =>
+      _PrefixParserSlice(path: path, window: window, index: 0);
 }
 
 /// A cursor into a [_PrefixParser]'s lookup window.
@@ -210,8 +194,8 @@ class _PrefixParserSlice {
     required this.index,
   });
 
-  final Uint8List path;
-  final Uint8List window;
+  final CodeUnits path;
+  final List<int> window;
   final int index;
 
   /// Tries to consume [pattern] from the current cursor position.
@@ -231,12 +215,6 @@ class _PrefixParserSlice {
     );
   }
 
-  /// The bytes of the source path that were consumed up to the cursor.
-  Uint8List prefixBytes() => Uint8List.sublistView(path, 0, index);
-
-  /// The bytes of the source path that remain after the cursor.
-  ///
-  /// These come from the original path, not the lookup window, so any `/`
-  /// characters beyond the prefix are preserved as filename characters.
-  Uint8List finish() => Uint8List.sublistView(path, index);
+  /// Returns the source code units that remain after the cursor.
+  CodeUnits finish() => path.sublistView(index);
 }

@@ -1,139 +1,135 @@
-import 'dart:typed_data';
-
 import 'package:pathify/src/prefix.dart';
 import 'package:pathify/src/sys/path/windows_prefix.dart';
 import 'package:test/test.dart';
 
-Uint8List _b(String s) => Uint8List.fromList(s.codeUnits);
-
-String _str(Uint8List b) => String.fromCharCodes(b);
+import 'integration/_helpers.dart';
 
 void main() {
   group('WindowsPrefix.parsePrefix', () {
     test('plain disk', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'C:\Users\Orange\Pictures'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'C:\Users\Orange\Pictures'));
       expect(p, isA<Disk>());
       expect((p! as Disk).drive, 0x43); // 'C'
     });
 
     test('disk letter is normalized to uppercase', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'c:\Users'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'c:\Users'));
       expect((p! as Disk).drive, 0x43); // 'C', not 'c'
     });
 
     test('disk requires a colon', () {
-      expect(WindowsPrefix.parsePrefix(_b(r'C\foo')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'C\foo')), isNull);
     });
 
     test('disk requires an alphabetic letter', () {
-      expect(WindowsPrefix.parsePrefix(_b(r'1:\foo')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'1:\foo')), isNull);
     });
 
     test('UNC', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'\\server\share\file'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\server\share\file'));
       expect(p, isA<UNC>());
       final unc = p! as UNC;
-      expect(_str(unc.server), 'server');
-      expect(_str(unc.share), 'share');
+      expect(cuStr(unc.server), 'server');
+      expect(cuStr(unc.share), 'share');
     });
 
     test('UNC with forward slashes is recognized in the prefix window', () {
-      final p = WindowsPrefix.parsePrefix(_b('//server/share/file'));
+      final p = WindowsPrefix.parsePrefix(cuN('//server/share/file'));
       expect(p, isA<UNC>());
     });
 
     test('verbatim prefix with arbitrary component', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'\\?\pictures\kittens'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\?\pictures\kittens'));
       expect(p, isA<Verbatim>());
-      expect(_str((p! as Verbatim).component), 'pictures');
+      expect(cuStr((p! as Verbatim).component), 'pictures');
     });
 
     test('verbatim disk', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'\\?\C:\Windows'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\?\C:\Windows'));
       expect(p, isA<VerbatimDisk>());
       expect((p! as VerbatimDisk).drive, 0x43);
     });
 
     test('verbatim disk requires exact form', () {
       // \\?\Cfoo  - no colon, not a verbatim disk
-      final p = WindowsPrefix.parsePrefix(_b(r'\\?\Cfoo\bar'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\?\Cfoo\bar'));
       expect(p, isA<Verbatim>());
     });
 
     test('verbatim UNC', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'\\?\UNC\server\share'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\?\UNC\server\share'));
       expect(p, isA<VerbatimUNC>());
       final unc = p! as VerbatimUNC;
-      expect(_str(unc.server), 'server');
-      expect(_str(unc.share), 'share');
+      expect(cuStr(unc.server), 'server');
+      expect(cuStr(unc.share), 'share');
     });
 
     test('device namespace', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'\\.\COM42'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\.\COM42'));
       expect(p, isA<DeviceNS>());
-      expect(_str((p! as DeviceNS).device), 'COM42');
+      expect(cuStr((p! as DeviceNS).device), 'COM42');
     });
 
     test('device namespace with brain interface', () {
-      final p = WindowsPrefix.parsePrefix(_b(r'\\.\BrainInterface'));
+      final p = WindowsPrefix.parsePrefix(cuN(r'\\.\BrainInterface'));
       expect(p, isA<DeviceNS>());
-      expect(_str((p! as DeviceNS).device), 'BrainInterface');
+      expect(cuStr((p! as DeviceNS).device), 'BrainInterface');
     });
 
     test('relative path returns null', () {
-      expect(WindowsPrefix.parsePrefix(_b(r'foo\bar')), isNull);
-      expect(WindowsPrefix.parsePrefix(_b(r'.\foo')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'foo\bar')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'.\foo')), isNull);
     });
 
     test('empty path returns null', () {
-      expect(WindowsPrefix.parsePrefix(Uint8List(0)), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN('')), isNull);
     });
 
     test('lone double-backslash returns null', () {
-      expect(WindowsPrefix.parsePrefix(_b(r'\\')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'\\')), isNull);
     });
 
     test('UNC requires both server and share to be non-empty', () {
-      expect(WindowsPrefix.parsePrefix(_b(r'\\server')), isNull);
-      expect(WindowsPrefix.parsePrefix(_b(r'\\server\')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'\\server')), isNull);
+      expect(WindowsPrefix.parsePrefix(cuN(r'\\server\')), isNull);
     });
   });
 
   group('WindowsPrefix.parseNextComponent', () {
     test('splits on first separator (non-verbatim)', () {
-      final (a, b) = WindowsPrefix.parseNextComponent(
-        _b(r'foo\bar\baz'),
+      final (a, b2) = WindowsPrefix.parseNextComponent(
+        cuN(r'foo\bar\baz'),
         verbatim: false,
       );
-      expect(_str(a), 'foo');
-      expect(_str(b), r'bar\baz');
+      expect(cuStr(a), 'foo');
+      expect(cuStr(b2), r'bar\baz');
     });
 
     test('forward slash counts in non-verbatim mode', () {
-      final (a, b) = WindowsPrefix.parseNextComponent(
-        _b('foo/bar'),
+      final (a, b2) = WindowsPrefix.parseNextComponent(
+        cuN('foo/bar'),
         verbatim: false,
       );
-      expect(_str(a), 'foo');
-      expect(_str(b), 'bar');
+      expect(cuStr(a), 'foo');
+      expect(cuStr(b2), 'bar');
     });
 
     test('forward slash is a filename byte in verbatim mode', () {
-      final (a, b) = WindowsPrefix.parseNextComponent(
-        _b(r'foo/bar\baz'),
+      final (a, b2) = WindowsPrefix.parseNextComponent(
+        cuN(r'foo/bar\baz'),
         verbatim: true,
       );
-      expect(_str(a), 'foo/bar');
-      expect(_str(b), 'baz');
+      expect(cuStr(a), 'foo/bar');
+      expect(cuStr(b2), 'baz');
     });
 
     test('returns whole input when no separator is present', () {
-      final (a, b) = WindowsPrefix.parseNextComponent(
-        _b('only'),
+      final (a, b2) = WindowsPrefix.parseNextComponent(
+        cuN('only'),
         verbatim: false,
       );
-      expect(_str(a), 'only');
-      expect(b, isEmpty);
+      expect(cuStr(a), 'only');
+      expect(b2.isEmpty, isTrue);
     });
   });
 }

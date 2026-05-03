@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'package:pathify/src/code_units.dart';
 
 /// A Windows path prefix.
 ///
@@ -43,8 +43,8 @@ sealed class Prefix {
 final class Verbatim extends Prefix {
   const Verbatim(this.component);
 
-  /// The component bytes that follow `\\?\`.
-  final Uint8List component;
+  /// The component code units that follow `\\?\`.
+  final CodeUnits component;
 
   @override
   int get len => 4 + component.length;
@@ -56,11 +56,11 @@ final class Verbatim extends Prefix {
 final class VerbatimUNC extends Prefix {
   const VerbatimUNC(this.server, this.share);
 
-  /// The server hostname bytes.
-  final Uint8List server;
+  /// The server hostname code units.
+  final CodeUnits server;
 
-  /// The share name bytes.
-  final Uint8List share;
+  /// The share name code units.
+  final CodeUnits share;
 
   @override
   int get len => 8 + server.length + (share.isEmpty ? 0 : 1 + share.length);
@@ -85,8 +85,8 @@ final class VerbatimDisk extends Prefix {
 final class DeviceNS extends Prefix {
   const DeviceNS(this.device);
 
-  /// The device name bytes.
-  final Uint8List device;
+  /// The device name code units.
+  final CodeUnits device;
 
   @override
   int get len => 4 + device.length;
@@ -98,11 +98,11 @@ final class DeviceNS extends Prefix {
 final class UNC extends Prefix {
   const UNC(this.server, this.share);
 
-  /// The server hostname bytes.
-  final Uint8List server;
+  /// The server hostname code units.
+  final CodeUnits server;
 
-  /// The share name bytes.
-  final Uint8List share;
+  /// The share name code units.
+  final CodeUnits share;
 
   @override
   int get len => 2 + server.length + (share.isEmpty ? 0 : 1 + share.length);

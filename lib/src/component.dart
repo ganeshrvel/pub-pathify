@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:pathify/pathify.dart';
+import 'package:pathify/src/path_bytes.dart';
 
 /// A single component of a path.
 ///
@@ -10,13 +11,8 @@ import 'package:pathify/pathify.dart';
 sealed class Component {
   const Component();
 
-  /// The bytes of this component as they appear in the source path.
-  ///
-  /// For [ComponentRootDir], [ComponentCurDir], and [ComponentParentDir],
-  /// the returned slice is a freshly allocated single- or double-byte list.
-  /// For [ComponentNormal] and [ComponentPrefix] it is a view into the
-  /// underlying path.
-  Uint8List asOsStr();
+  /// The code units of this component as they appear in the source path.
+  CodeUnits asOsStr();
 }
 
 /// A Windows path prefix appearing as the first component of a path.
@@ -29,8 +25,8 @@ sealed class Component {
 final class ComponentPrefix extends Component {
   const ComponentPrefix({required this.raw, required this.parsed});
 
-  /// The raw prefix bytes, e.g. `\\?\C:` or `\\server\share`.
-  final Uint8List raw;
+  /// The raw prefix code units, e.g. `\\?\C:` or `\\server\share`.
+  final CodeUnits raw;
 
   /// The structured prefix data produced by the prefix parser.
   final Prefix parsed;
@@ -39,7 +35,7 @@ final class ComponentPrefix extends Component {
   Prefix get kind => parsed;
 
   @override
-  Uint8List asOsStr() => raw;
+  CodeUnits asOsStr() => raw;
 }
 
 /// The root directory component.
@@ -50,14 +46,21 @@ final class ComponentPrefix extends Component {
 /// immediately after the prefix during iteration to make root presence
 /// uniform across path shapes.
 final class ComponentRootDir extends Component {
-  const ComponentRootDir(this.separatorByte);
+  const ComponentRootDir(this.separatorByte, {required this.isWide});
 
-  /// The separator byte to render for this root: `/` on POSIX, `\` on
-  /// Windows.
+  /// The separator code unit to render: `/` on POSIX, `\` on Windows.
   final int separatorByte;
 
+  /// Whether this root belongs to a wide (Windows) or narrow (POSIX) path.
+  final bool isWide;
+
   @override
-  Uint8List asOsStr() => Uint8List.fromList([separatorByte]);
+  CodeUnits asOsStr() {
+    if (isWide) {
+      return WideCodeUnits(_singleWide(separatorByte));
+    }
+    return NarrowCodeUnits(_singleNarrow(separatorByte));
+  }
 }
 
 /// A reference to the current directory: `.`.
@@ -66,18 +69,32 @@ final class ComponentRootDir extends Component {
 /// `.` segments are normalized away by the iterator and never produced as
 /// components.
 final class ComponentCurDir extends Component {
-  const ComponentCurDir();
+  const ComponentCurDir({required this.isWide});
+
+  final bool isWide;
 
   @override
-  Uint8List asOsStr() => Uint8List.fromList(const [0x2E]);
+  CodeUnits asOsStr() {
+    if (isWide) {
+      return WideCodeUnits(_singleWide(PathBytes.dot));
+    }
+    return NarrowCodeUnits(_singleNarrow(PathBytes.dot));
+  }
 }
 
 /// A reference to the parent directory: `..`.
 final class ComponentParentDir extends Component {
-  const ComponentParentDir();
+  const ComponentParentDir({required this.isWide});
+
+  final bool isWide;
 
   @override
-  Uint8List asOsStr() => Uint8List.fromList(const [0x2E, 0x2E]);
+  CodeUnits asOsStr() {
+    if (isWide) {
+      return WideCodeUnits(_doubleWide(PathBytes.dot));
+    }
+    return NarrowCodeUnits(_doubleNarrow(PathBytes.dot));
+  }
 }
 
 /// A normal path component such as a directory or file name.
@@ -87,9 +104,35 @@ final class ComponentParentDir extends Component {
 final class ComponentNormal extends Component {
   const ComponentNormal(this.value);
 
-  /// The component bytes.
-  final Uint8List value;
+  /// The component code units.
+  final CodeUnits value;
 
   @override
-  Uint8List asOsStr() => value;
+  CodeUnits asOsStr() => value;
+}
+
+Uint8List _singleNarrow(int b) {
+  final out = Uint8List(1);
+  out[0] = b & 0xFF;
+  return out;
+}
+
+Uint16List _singleWide(int b) {
+  final out = Uint16List(1);
+  out[0] = b & 0xFFFF;
+  return out;
+}
+
+Uint8List _doubleNarrow(int b) {
+  final out = Uint8List(2);
+  out[0] = b & 0xFF;
+  out[1] = b & 0xFF;
+  return out;
+}
+
+Uint16List _doubleWide(int b) {
+  final out = Uint16List(2);
+  out[0] = b & 0xFFFF;
+  out[1] = b & 0xFFFF;
+  return out;
 }

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:pathify/src/code_units.dart';
 import 'package:pathify/src/component.dart';
 import 'package:pathify/src/components.dart';
 import 'package:pathify/src/path_bytes.dart';
@@ -9,22 +11,30 @@ import 'package:pathify/src/sys/path/unix_style.dart';
 import 'package:pathify/src/sys/path/windows_prefix.dart';
 import 'package:pathify/src/sys/path/windows_style.dart';
 
+export 'package:pathify/src/code_units.dart';
 export 'package:pathify/src/component.dart';
 export 'package:pathify/src/components.dart';
 export 'package:pathify/src/prefix.dart';
 
 /// An owned, mutable path.
 ///
-/// Stores raw bytes — [Uint8List] for POSIX paths, [Uint16List] for Windows
-/// paths — and exposes inspection (parent, file name, components) and
-/// mutation (push, pop, set extension) operations on top.
+/// Stores raw code units — [Uint8List] for POSIX paths, [Uint16List] for
+/// Windows paths — and exposes inspection (parent, file name, components)
+/// and mutation (push, pop, set extension) operations on top.
 ///
 /// The path's style is determined intrinsically by the storage type:
-/// `Uint16List` is always Windows; `Uint8List` is always POSIX. The platform
-/// reported by [Pathify.instance] only affects construction-time assertions
-/// and the choice of style for the [PathBuf.fromBytes] entry point.
+/// `Uint16List` is always Windows; `Uint8List` is always POSIX. The
+/// platform reported by [Pathify.instance] only affects construction-time
+/// assertions and the choice of style for the [PathBuf.fromBytes] entry
+/// point.
+///
+/// All internal operations use the [CodeUnits] abstraction, which
+/// preserves the full range of each code unit. POSIX paths can carry
+/// arbitrary bytes (including non-UTF-8 sequences); Windows paths can
+/// carry the full UTF-16 range (including unpaired surrogates) — both
+/// flow through every operation without truncation.
 final class PathBuf {
-  PathBuf._(this._bytes);
+  PathBuf._(this._units);
 
   /// Builds a path from raw bytes.
   ///
@@ -42,64 +52,105 @@ final class PathBuf {
       'Expected ${Pathify.instance.isWindows() ? 'Uint16List' : 'Uint8List'}, '
       'got ${bytes.runtimeType}.',
     );
-    return PathBuf._(bytes);
+    return PathBuf._(CodeUnits.from(bytes));
   }
 
-  /// Builds an empty path.
+  /// Builds a path from a Dart [String], encoding it for the active
+  /// platform.
   ///
-  /// The storage type is chosen based on the active platform.
+  /// On POSIX the string is encoded as UTF-8 bytes. On Windows it is
+  /// stored directly as UTF-16 code units (Dart's internal string
+  /// representation is already UTF-16, so this is a zero-loss copy).
+  factory PathBuf.fromStr(String s) {
+    if (Pathify.instance.isWindows()) {
+      return PathBuf._(WideCodeUnits(Uint16List.fromList(s.codeUnits)));
+    }
+    return PathBuf._(NarrowCodeUnits(Uint8List.fromList(utf8.encode(s))));
+  }
+
+  /// Builds an empty path. Storage type matches the active platform.
   factory PathBuf.empty() {
     if (Pathify.instance.isWindows()) {
-      return PathBuf._(Uint16List(0));
+      return PathBuf._(WideCodeUnits(Uint16List(0)));
     }
-    return PathBuf._(Uint8List(0));
+    return PathBuf._(NarrowCodeUnits(Uint8List(0)));
   }
 
-  TypedData _bytes;
+  CodeUnits _units;
 
-  // ── Storage access (style-agnostic) ──────────────────────────────────
+  // ── String conversion ────────────────────────────────────────────────
 
-  /// True when the underlying storage is a [Uint16List], i.e. Windows-style.
-  bool get _isWindowsStyle => _bytes is Uint16List;
-
-  /// The number of code units (or bytes) in the path.
-  int get _length => _bytes.lengthInBytes ~/ _bytes.elementSizeInBytes;
-
-  /// Reads a single code unit (or byte) at [index].
-  int _at(int index) {
-    final b = _bytes;
-    if (b is Uint8List) return b[index];
-    if (b is Uint16List) return b[index];
-    throw StateError('unsupported PathBuf storage: ${b.runtimeType}');
-  }
-
-  /// Materializes the path bytes into a [Uint8List] view.
-  ///
-  /// On POSIX this is a zero-copy view of the underlying bytes. On Windows
-  /// it allocates a new buffer of the same length, copying each UTF-16 code
-  /// unit into a single byte slot — this is only safe for ASCII-only paths
-  /// and is provided to support the prefix parser, which inspects only
-  /// ASCII bytes.
-  ///
-  /// Used internally by operations that need a uniform byte view.
-  Uint8List _asAsciiBytes() {
-    final b = _bytes;
-    if (b is Uint8List) return b;
-    if (b is Uint16List) {
-      final out = Uint8List(b.length);
-      for (var i = 0; i < b.length; i++) {
-        // Path-significant bytes are ASCII; non-ASCII code units may be
-        // truncated here, but the parser never inspects them — only slices
-        // them out as opaque payload.
-        out[i] = b[i] & 0xFF;
+  /// Decodes the path as a Dart [String] when the code units are valid
+  /// Unicode, otherwise returns `null`.
+  String? toStr() {
+    if (_units is NarrowCodeUnits) {
+      try {
+        return utf8.decode(
+          (_units as NarrowCodeUnits).toTypedData(),
+          allowMalformed: false,
+        );
+      } on FormatException {
+        return null;
       }
-      return out;
     }
-    throw StateError('unsupported PathBuf storage: ${b.runtimeType}');
+    final wide = (_units as WideCodeUnits).toTypedData();
+    for (var i = 0; i < wide.length; i++) {
+      final cu = wide[i];
+      if (cu >= 0xD800 && cu <= 0xDBFF) {
+        if (i + 1 >= wide.length) return null;
+        final next = wide[i + 1];
+        if (next < 0xDC00 || next > 0xDFFF) return null;
+        i++;
+      } else if (cu >= 0xDC00 && cu <= 0xDFFF) {
+        return null;
+      }
+    }
+    return String.fromCharCodes(wide);
   }
+
+  /// Decodes the path as a Dart [String], substituting U+FFFD for any
+  /// code units that are not valid Unicode under the active encoding.
+  String toStringLossy() {
+    if (_units is NarrowCodeUnits) {
+      return utf8.decode(
+        (_units as NarrowCodeUnits).toTypedData(),
+        allowMalformed: true,
+      );
+    }
+    final wide = (_units as WideCodeUnits).toTypedData();
+    final out = StringBuffer();
+    for (var i = 0; i < wide.length; i++) {
+      final cu = wide[i];
+      if (cu >= 0xD800 && cu <= 0xDBFF) {
+        if (i + 1 < wide.length) {
+          final next = wide[i + 1];
+          if (next >= 0xDC00 && next <= 0xDFFF) {
+            out
+              ..writeCharCode(cu)
+              ..writeCharCode(next);
+            i++;
+            continue;
+          }
+        }
+        out.writeCharCode(0xFFFD);
+      } else if (cu >= 0xDC00 && cu <= 0xDFFF) {
+        out.writeCharCode(0xFFFD);
+      } else {
+        out.writeCharCode(cu);
+      }
+    }
+    return out.toString();
+  }
+
+  // ── Storage access ───────────────────────────────────────────────────
+
+  bool get _isWindowsStyle => _units.isWide;
 
   /// The raw underlying storage as supplied to [PathBuf.fromBytes].
-  TypedData get bytes => _bytes;
+  TypedData get bytes => _units.toTypedData();
+
+  /// The path content as a [CodeUnits] view.
+  CodeUnits get codeUnits => _units;
 
   /// Whether this path uses Windows path semantics.
   ///
@@ -109,11 +160,11 @@ final class PathBuf {
   /// Whether this path uses POSIX path semantics.
   bool get isUnix => !isWindows;
 
-  /// True when the path contains no bytes.
-  bool get isEmpty => _length == 0;
+  /// True when the path contains no code units.
+  bool get isEmpty => _units.isEmpty;
 
-  /// The number of code units (or bytes) in the path.
-  int get length => _length;
+  /// The number of code units in the path.
+  int get length => _units.length;
 
   // ── Prefix and structure ─────────────────────────────────────────────
 
@@ -123,11 +174,10 @@ final class PathBuf {
   /// parser over the leading bytes.
   Prefix? prefix() {
     if (!_isWindowsStyle) return null;
-    return WindowsPrefix.parsePrefix(_asAsciiBytes());
+    return WindowsPrefix.parsePrefix(_units);
   }
 
-  /// True when the path has a leading root, either physically (a leading
-  /// separator) or implied by its prefix (UNC, device namespace, etc.).
+  /// True when the path has a leading root.
   bool hasRoot() => components().hasRoot();
 
   /// True when the path is independent of the current working directory.
@@ -151,7 +201,7 @@ final class PathBuf {
   ///
   /// See [Components] for the normalization rules applied during iteration.
   Components components() => Components.start(
-    pathBytes: _asAsciiBytes(),
+    pathBytes: _units,
     prefix: prefix(),
     isWindows: _isWindowsStyle,
   );
@@ -191,7 +241,7 @@ final class PathBuf {
   /// The final component of the path.
   ///
   /// Returns `null` when the path terminates in a root, prefix, or `..`.
-  Uint8List? fileName() {
+  CodeUnits? fileName() {
     final iter = components();
     final last = iter.nextBack();
     if (last is ComponentNormal) {
@@ -205,7 +255,7 @@ final class PathBuf {
   /// Returns the entire file name when there is no embedded dot, or when the
   /// file name begins with a dot and has no other dots within. Returns
   /// `null` when there is no file name.
-  Uint8List? fileStem() {
+  CodeUnits? fileStem() {
     final name = fileName();
     if (name == null) return null;
     final (before, after) = _rsplitAtDot(name);
@@ -216,7 +266,7 @@ final class PathBuf {
   ///
   /// For dotfiles such as `.config`, the leading dot is preserved and the
   /// result is the whole name. Returns `null` when there is no file name.
-  Uint8List? filePrefix() {
+  CodeUnits? filePrefix() {
     final name = fileName();
     if (name == null) return null;
     final (before, _) = _splitAtDot(name);
@@ -227,7 +277,7 @@ final class PathBuf {
   ///
   /// Returns `null` when there is no file name, no embedded dot, or when
   /// the file name begins with a dot and has no other dots within.
-  Uint8List? extension() {
+  CodeUnits? extension() {
     final name = fileName();
     if (name == null) return null;
     final (before, after) = _rsplitAtDot(name);
@@ -235,10 +285,10 @@ final class PathBuf {
     return null;
   }
 
-  /// True when the path ends in a separator byte.
+  /// True when the path ends in a separator code unit.
   bool hasTrailingSep() {
     if (isEmpty) return false;
-    final last = _at(_length - 1);
+    final last = _units[_units.length - 1];
     if (_isWindowsStyle) {
       return WindowsStyle.isSepByte(last);
     }
@@ -283,30 +333,25 @@ final class PathBuf {
   /// Otherwise [path] is appended after a separator (one is inserted if
   /// the existing path does not already end with one).
   void push(PathBuf path) {
-    final myBytes = _asAsciiBytes();
-    final theirBytes = path._asAsciiBytes();
+    final myPrefix = prefix();
+    final theirPrefix = path.prefix();
 
-    var needSep =
-        myBytes.isNotEmpty && !_isSepHere(myBytes[myBytes.length - 1]);
+    var needSep = _units.isNotEmpty && !_isSepHere(_units[_units.length - 1]);
 
-    // Special case: when this path is exactly a drive prefix (e.g. `C:`),
-    // do not insert a separator.
-    final myComps = Components.start(
-      pathBytes: myBytes,
-      prefix: prefix(),
-      isWindows: _isWindowsStyle,
-    );
-    final myPrefixLen = prefix()?.len ?? 0;
-    if (myPrefixLen > 0 && myPrefixLen == myBytes.length && prefix()!.isDrive) {
+    final myPrefixLen = myPrefix?.len ?? 0;
+    if (myPrefixLen > 0 && myPrefixLen == _units.length && myPrefix!.isDrive) {
       needSep = false;
     }
-    // Reference [myComps] to avoid unused-variable lints; iteration is not
-    // required here.
-    myComps.toList();
 
-    final pathIsAbsolute = path.isAbsolute() || path.prefix() != null;
+    final pathIsAbsolute = path.isAbsolute() || theirPrefix != null;
     if (pathIsAbsolute) {
-      _bytes = path._bytes;
+      _units = path._units;
+      return;
+    }
+
+    final receiverIsVerbatim = myPrefix != null && myPrefix.isVerbatim;
+    if (receiverIsVerbatim && path._units.isNotEmpty) {
+      _pushVerbatim(path);
       return;
     }
 
@@ -315,18 +360,60 @@ final class PathBuf {
       // existing prefix.
       _truncate(myPrefixLen);
     } else if (needSep) {
-      _appendByte(_mainSepByte());
+      _appendCodeUnit(_mainSepByte());
     }
 
-    _appendBytes(theirBytes);
+    _appendCodeUnits(path._units);
   }
 
-  /// Truncates this path to its parent, returning whether anything was
-  /// removed.
+  void _pushVerbatim(PathBuf path) {
+    final selfComps = components().toList();
+    final buf = <Component>[...selfComps];
+
+    for (final c in path.components().toList()) {
+      if (c is ComponentRootDir) {
+        while (buf.length > 1) {
+          buf.removeLast();
+        }
+        buf.add(c);
+      } else if (c is ComponentCurDir) {
+        continue;
+      } else if (c is ComponentParentDir) {
+        if (buf.isNotEmpty && buf.last is ComponentNormal) {
+          buf.removeLast();
+        }
+      } else {
+        buf.add(c);
+      }
+    }
+
+    // Reassemble. Drive prefixes get no automatic separator after them;
+    // non-drive non-empty prefixes do.
+    var result = _emptyOfSameWidth();
+    var needSep = false;
+    for (final c in buf) {
+      if (needSep && c is! ComponentRootDir) {
+        result = result.appendCodeUnit(_mainSepByte());
+      }
+      result = result.concat(c.asOsStr());
+
+      if (c is ComponentRootDir) {
+        needSep = false;
+      } else if (c is ComponentPrefix) {
+        final p = c.parsed;
+        needSep = !p.isDrive && p.len > 0;
+      } else {
+        needSep = true;
+      }
+    }
+
+    _units = result;
+  }
+
   bool pop() {
     final p = parent();
     if (p == null) return false;
-    _bytes = p._bytes;
+    _units = p._units;
     return true;
   }
 
@@ -334,7 +421,7 @@ final class PathBuf {
   ///
   /// When the path has no file name (e.g. it ends in a separator), the
   /// supplied name is appended.
-  void setFileName(Uint8List fileName) {
+  void setFileName(CodeUnits fileName) {
     if (this.fileName() != null) {
       pop();
     }
@@ -345,19 +432,17 @@ final class PathBuf {
   ///
   /// When [extension] is empty the existing extension is removed. When the
   /// path has no file name nothing happens and `false` is returned.
-  bool setExtension(Uint8List extension) {
+  bool setExtension(CodeUnits extension) {
     _validateExtension(extension);
     final stem = fileStem();
     if (stem == null) return false;
 
-    // Truncate to just past the stem.
-    final myBytes = _asAsciiBytes();
-    final stemEnd = _findStemEnd(myBytes, stem);
+    final stemEnd = _findStemEnd(_units, stem);
     _truncate(stemEnd);
 
     if (extension.isNotEmpty) {
-      _appendByte(PathBytes.dot);
-      _appendBytes(extension);
+      _appendCodeUnit(PathBytes.dot);
+      _appendCodeUnits(extension);
     }
     return true;
   }
@@ -367,21 +452,24 @@ final class PathBuf {
   ///
   /// When the path has no file name nothing happens and `false` is
   /// returned.
-  bool addExtension(Uint8List extension) {
+  bool addExtension(CodeUnits extension) {
     _validateExtension(extension);
     final name = fileName();
     if (name == null) return false;
 
     if (extension.isNotEmpty) {
-      _appendByte(PathBytes.dot);
-      _appendBytes(extension);
+      final nameEnd = _findFileNameEnd(_units, name);
+      _truncate(nameEnd);
+
+      _appendCodeUnit(PathBytes.dot);
+      _appendCodeUnits(extension);
     }
     return true;
   }
 
   /// Empties the path.
   void clear() {
-    _bytes = _isWindowsStyle ? Uint16List(0) : Uint8List(0);
+    _units = _emptyOfSameWidth();
   }
 
   // ── Non-mutating builders ────────────────────────────────────────────
@@ -395,19 +483,19 @@ final class PathBuf {
   }
 
   /// Returns a new path with the file name replaced.
-  PathBuf withFileName(Uint8List fileName) {
+  PathBuf withFileName(CodeUnits fileName) {
     final out = _clone()..setFileName(fileName);
     return out;
   }
 
   /// Returns a new path with the extension replaced.
-  PathBuf withExtension(Uint8List extension) {
+  PathBuf withExtension(CodeUnits extension) {
     final out = _clone()..setExtension(extension);
     return out;
   }
 
   /// Returns a new path with [extension] appended to the existing extension.
-  PathBuf withAddedExtension(Uint8List extension) {
+  PathBuf withAddedExtension(CodeUnits extension) {
     final out = _clone()..addExtension(extension);
     return out;
   }
@@ -440,67 +528,71 @@ final class PathBuf {
 
   // ── Internal mutation primitives ─────────────────────────────────────
 
+  CodeUnits _emptyOfSameWidth() => _units.emptyOfSameWidth();
+
   void _truncate(int newLength) {
-    final b = _bytes;
-    if (b is Uint8List) {
-      _bytes = Uint8List.sublistView(b, 0, newLength);
-    } else if (b is Uint16List) {
-      _bytes = Uint16List.sublistView(b, 0, newLength);
+    _units = _units.sublistView(0, newLength);
+  }
+
+  void _appendCodeUnit(int unit) {
+    _units = _units.appendCodeUnit(unit);
+  }
+
+  void _appendCodeUnits(CodeUnits src) {
+    if (src.isWide != _units.isWide) {
+      // Cross-width append: widen or narrow `src` to match `_units`.
+      // This happens when the caller passes a `CodeUnits` of the wrong
+      // width (e.g. an extension built as Uint8List for a Windows path).
+      // We convert by zero-extending or low-byte-truncating as needed.
+      _units = _units.concat(_coerceWidth(src));
     } else {
-      throw StateError('unsupported PathBuf storage: ${b.runtimeType}');
+      _units = _units.concat(src);
     }
   }
 
-  void _appendByte(int byte) {
-    final b = _bytes;
-    if (b is Uint8List) {
-      final out = Uint8List(b.length + 1)..setRange(0, b.length, b);
-      out[b.length] = byte;
-      _bytes = out;
-    } else if (b is Uint16List) {
-      final out = Uint16List(b.length + 1)..setRange(0, b.length, b);
-      out[b.length] = byte;
-      _bytes = out;
-    } else {
-      throw StateError('unsupported PathBuf storage: ${b.runtimeType}');
-    }
-  }
-
-  void _appendBytes(Uint8List src) {
-    final b = _bytes;
-    if (b is Uint8List) {
-      final out = Uint8List(b.length + src.length)
-        ..setRange(0, b.length, b)
-        ..setRange(b.length, b.length + src.length, src);
-      _bytes = out;
-    } else if (b is Uint16List) {
-      final out = Uint16List(b.length + src.length)..setRange(0, b.length, b);
+  CodeUnits _coerceWidth(CodeUnits src) {
+    if (src.isWide == _units.isWide) return src;
+    if (_units.isWide) {
+      // Widen Uint8List -> Uint16List by zero-extending each byte.
+      final out = Uint16List(src.length);
       for (var i = 0; i < src.length; i++) {
-        out[b.length + i] = src[i];
+        out[i] = src[i];
       }
-      _bytes = out;
-    } else {
-      throw StateError('unsupported PathBuf storage: ${b.runtimeType}');
+      return WideCodeUnits(out);
     }
+    // Narrow Uint16List -> Uint8List. We use the low byte; this is
+    // correct for ASCII payloads (extensions, file names that are all
+    // ASCII) and is the lossless choice when the caller has already
+    // validated the input.
+    final out = Uint8List(src.length);
+    for (var i = 0; i < src.length; i++) {
+      out[i] = src[i] & 0xFF;
+    }
+    return NarrowCodeUnits(out);
   }
 
-  PathBuf _clone() {
-    final b = _bytes;
-    if (b is Uint8List) return PathBuf._(Uint8List.fromList(b));
-    if (b is Uint16List) return PathBuf._(Uint16List.fromList(b));
-    throw StateError('unsupported PathBuf storage: ${b.runtimeType}');
-  }
+  PathBuf _clone() => PathBuf._(_units.clone());
 
-  /// Builds a fresh [PathBuf] of the same style from the given byte view.
-  PathBuf _materialize(Uint8List bytes) {
+  /// Builds a fresh [PathBuf] of the same style from the given code-unit
+  /// view.
+  PathBuf _materialize(CodeUnits src) {
+    if (src.isWide == _isWindowsStyle) {
+      // Same width — clone to detach from any sublist view sharing.
+      return PathBuf._(src.clone());
+    }
+    // Different width — coerce. Same logic as `_coerceWidth`.
     if (_isWindowsStyle) {
-      final out = Uint16List(bytes.length);
-      for (var i = 0; i < bytes.length; i++) {
-        out[i] = bytes[i];
+      final out = Uint16List(src.length);
+      for (var i = 0; i < src.length; i++) {
+        out[i] = src[i];
       }
-      return PathBuf._(out);
+      return PathBuf._(WideCodeUnits(out));
     }
-    return PathBuf._(Uint8List.fromList(bytes));
+    final out = Uint8List(src.length);
+    for (var i = 0; i < src.length; i++) {
+      out[i] = src[i] & 0xFF;
+    }
+    return PathBuf._(NarrowCodeUnits(out));
   }
 
   bool _isSepHere(int b) =>
@@ -518,18 +610,17 @@ final class PathBuf {
     return bytes is Uint8List;
   }
 
-  static void _validateExtension(Uint8List ext) {
-    for (final b in ext) {
+  static void _validateExtension(CodeUnits ext) {
+    for (var i = 0; i < ext.length; i++) {
+      final b = ext[i];
       if (UnixStyle.isSepByte(b) || WindowsStyle.isSepByte(b)) {
         throw ArgumentError(
-          'extension cannot contain path separators: ${ext.toList()}',
+          'extension cannot contain path separators',
         );
       }
     }
   }
 }
-
-// ── Free helpers ───────────────────────────────────────────────────────────
 
 /// True when [codeUnit] is one of the platform's path separators.
 ///
@@ -573,7 +664,7 @@ Components? _iterAfter(Components iter, Components prefix) {
 /// `..` is preserved as a whole. A leading dot is not treated as a split
 /// point; `.bashrc` returns `(null, '.bashrc')`. The exact behavior
 /// matches the file-stem / extension rules.
-(Uint8List?, Uint8List?) _rsplitAtDot(Uint8List file) {
+(CodeUnits?, CodeUnits?) _rsplitAtDot(CodeUnits file) {
   if (file.length == 2 &&
       file[0] == PathBytes.dot &&
       file[1] == PathBytes.dot) {
@@ -590,8 +681,8 @@ Components? _iterAfter(Components iter, Components prefix) {
 
   if (dotAt < 0) return (null, file);
 
-  final before = Uint8List.sublistView(file, 0, dotAt);
-  final after = Uint8List.sublistView(file, dotAt + 1);
+  final before = file.sublistView(0, dotAt);
+  final after = file.sublistView(dotAt + 1);
   if (before.isEmpty) return (file, null);
   return (before, after);
 }
@@ -599,14 +690,13 @@ Components? _iterAfter(Components iter, Components prefix) {
 /// Splits [file] into `(before, after)` around the first non-leading dot.
 ///
 /// Used for [PathBuf.filePrefix].
-(Uint8List, Uint8List?) _splitAtDot(Uint8List file) {
+(CodeUnits, CodeUnits?) _splitAtDot(CodeUnits file) {
   if (file.length == 2 &&
       file[0] == PathBytes.dot &&
       file[1] == PathBytes.dot) {
     return (file, null);
   }
   var i = -1;
-  // Skip the leading byte so a leading dot does not count as a split point.
   for (var k = 1; k < file.length; k++) {
     if (file[k] == PathBytes.dot) {
       i = k;
@@ -614,55 +704,121 @@ Components? _iterAfter(Components iter, Components prefix) {
     }
   }
   if (i < 0) return (file, null);
-  final before = Uint8List.sublistView(file, 0, i);
-  final after = Uint8List.sublistView(file, i + 1);
-  return (before, after);
+  return (file.sublistView(0, i), file.sublistView(i + 1));
 }
 
-/// Locates the byte index immediately after [stem] within [bytes].
+/// Locates the code-unit index immediately after [stem] within [units].
 ///
 /// Used by [PathBuf.setExtension] to truncate the path to the stem.
-int _findStemEnd(Uint8List bytes, Uint8List stem) {
+int _findStemEnd(CodeUnits units, CodeUnits stem) {
   // The stem is always a slice from the end of the path. Search backwards
   // for a matching window.
-  for (var i = bytes.length - stem.length; i >= 0; i--) {
+  for (var i = units.length - stem.length; i >= 0; i--) {
     var match = true;
     for (var k = 0; k < stem.length; k++) {
-      if (bytes[i + k] != stem[k]) {
+      if (units[i + k] != stem[k]) {
         match = false;
         break;
       }
     }
     if (match) return i + stem.length;
   }
-  return bytes.length;
+  return units.length;
 }
 
-/// Compares two components for whole-component equality.
+/// Locates the code-unit index immediately after the last occurrence of
+/// [name] within [units].
+int _findFileNameEnd(CodeUnits units, CodeUnits name) {
+  for (var i = units.length - name.length; i >= 0; i--) {
+    var match = true;
+    for (var k = 0; k < name.length; k++) {
+      if (units[i + k] != name[k]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return i + name.length;
+  }
+  return units.length;
+}
+
 bool _componentEquals(Component a, Component b) {
   if (a.runtimeType != b.runtimeType) return false;
-  return _bytesEqual(a.asOsStr(), b.asOsStr());
+
+  if (a is ComponentPrefix && b is ComponentPrefix) {
+    return _prefixEquals(a.parsed, b.parsed);
+  }
+
+  return a.asOsStr().equalsCodeUnits(b.asOsStr());
 }
 
-bool _bytesEqual(Uint8List a, Uint8List b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
+bool _prefixEquals(Prefix a, Prefix b) {
+  if (a.runtimeType != b.runtimeType) return false;
+  switch (a) {
+    case Disk():
+      return a.drive == (b as Disk).drive;
+    case VerbatimDisk():
+      return a.drive == (b as VerbatimDisk).drive;
+    case Verbatim():
+      return a.component.equalsCodeUnits((b as Verbatim).component);
+    case DeviceNS():
+      return a.device.equalsCodeUnits((b as DeviceNS).device);
+    case UNC():
+      final other = b as UNC;
+      return a.server.equalsCodeUnits(other.server) &&
+          a.share.equalsCodeUnits(other.share);
+    case VerbatimUNC():
+      final other = b as VerbatimUNC;
+      return a.server.equalsCodeUnits(other.server) &&
+          a.share.equalsCodeUnits(other.share);
   }
-  return true;
 }
 
 int _componentHash(Component c) {
-  final bytes = c.asOsStr();
+  if (c is ComponentPrefix) {
+    return _prefixHash(c.parsed);
+  }
+  final units = c.asOsStr();
   var h = c.runtimeType.hashCode;
-  for (final b in bytes) {
-    h = (h * 31 + b) & 0x7FFFFFFF;
+  for (var i = 0; i < units.length; i++) {
+    h = (h * 31 + units[i]) & 0x7FFFFFFF;
   }
   return h;
 }
 
-/// Raised by lexical normalization when a `..` segment would escape the
-/// path's logical root.
+int _prefixHash(Prefix p) {
+  var h = p.runtimeType.hashCode;
+  switch (p) {
+    case Disk():
+      h = (h * 31 + p.drive) & 0x7FFFFFFF;
+    case VerbatimDisk():
+      h = (h * 31 + p.drive) & 0x7FFFFFFF;
+    case Verbatim():
+      for (var i = 0; i < p.component.length; i++) {
+        h = (h * 31 + p.component[i]) & 0x7FFFFFFF;
+      }
+    case DeviceNS():
+      for (var i = 0; i < p.device.length; i++) {
+        h = (h * 31 + p.device[i]) & 0x7FFFFFFF;
+      }
+    case UNC():
+      for (var i = 0; i < p.server.length; i++) {
+        h = (h * 31 + p.server[i]) & 0x7FFFFFFF;
+      }
+      for (var i = 0; i < p.share.length; i++) {
+        h = (h * 31 + p.share[i]) & 0x7FFFFFFF;
+      }
+    case VerbatimUNC():
+      for (var i = 0; i < p.server.length; i++) {
+        h = (h * 31 + p.server[i]) & 0x7FFFFFFF;
+      }
+      for (var i = 0; i < p.share.length; i++) {
+        h = (h * 31 + p.share[i]) & 0x7FFFFFFF;
+      }
+  }
+  return h;
+}
+
 class NormalizeError implements Exception {
   const NormalizeError();
 

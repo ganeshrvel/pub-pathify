@@ -3,13 +3,15 @@ import 'dart:typed_data';
 import 'package:pathify/pathify.dart';
 import 'package:test/test.dart';
 
+import 'integration/_helpers.dart';
+
 Uint8List _b(String s) => Uint8List.fromList(s.codeUnits);
 
 Uint16List _w(String s) => Uint16List.fromList(s.codeUnits);
 
-String _str(Uint8List b) => String.fromCharCodes(b);
+String _str(CodeUnits b) => cuStr(b);
 
-String _str16(Uint16List w) => String.fromCharCodes(w);
+String _str16(CodeUnits w) => cuStr(w);
 
 void main() {
   group('PathBuf on POSIX', () {
@@ -21,7 +23,7 @@ void main() {
 
     test('fromBytes accepts Uint8List', () {
       final p = PathBuf.fromBytes(_b('/tmp/foo'));
-      expect(p.bytes, isA<Uint8List>());
+      expect(p.codeUnits, isA<CodeUnits>());
       expect(p.length, equals(8));
     });
 
@@ -39,7 +41,7 @@ void main() {
       final p = PathBuf.fromBytes(_b('/foo/bar'));
       final parent = p.parent();
       expect(parent, isNotNull);
-      expect(_str(parent!.bytes as Uint8List), '/foo');
+      expect(_str(parent!.codeUnits), '/foo');
     });
 
     test('parent of root is null', () {
@@ -96,7 +98,7 @@ void main() {
       final p = PathBuf.fromBytes(_b('/test/haha/foo.txt'));
       final stripped = p.stripPrefix(PathBuf.fromBytes(_b('/test')));
       expect(stripped, isNotNull);
-      expect(_str(stripped!.bytes as Uint8List), 'haha/foo.txt');
+      expect(_str(stripped!.codeUnits), 'haha/foo.txt');
     });
 
     test('stripPrefix returns null when prefix does not match', () {
@@ -107,48 +109,48 @@ void main() {
     test('join appends a relative path with a separator', () {
       final base = PathBuf.fromBytes(_b('/etc'));
       final joined = base.join(PathBuf.fromBytes(_b('passwd')));
-      expect(_str(joined.bytes as Uint8List), '/etc/passwd');
+      expect(_str(joined.codeUnits), '/etc/passwd');
     });
 
     test('join replaces the path when the argument is absolute', () {
       final base = PathBuf.fromBytes(_b('/etc'));
       final joined = base.join(PathBuf.fromBytes(_b('/bin/sh')));
-      expect(_str(joined.bytes as Uint8List), '/bin/sh');
+      expect(_str(joined.codeUnits), '/bin/sh');
     });
 
     test('push mutates the receiver', () {
       final p = PathBuf.fromBytes(_b('/tmp'))
         ..push(PathBuf.fromBytes(_b('file.bk')));
-      expect(_str(p.bytes as Uint8List), '/tmp/file.bk');
+      expect(_str(p.codeUnits), '/tmp/file.bk');
     });
 
     test('pop truncates to the parent', () {
       final p = PathBuf.fromBytes(_b('/spirited/away.rs'));
       expect(p.pop(), isTrue);
-      expect(_str(p.bytes as Uint8List), '/spirited');
+      expect(_str(p.codeUnits), '/spirited');
       expect(p.pop(), isTrue);
-      expect(_str(p.bytes as Uint8List), '/');
+      expect(_str(p.codeUnits), '/');
       expect(p.pop(), isFalse);
     });
 
     test('setExtension replaces an existing extension', () {
       final p = PathBuf.fromBytes(_b('/feel/the.dark'));
-      expect(p.setExtension(_b('cookie')), isTrue);
-      expect(_str(p.bytes as Uint8List), '/feel/the.cookie');
+      expect(p.setExtension(cuN('cookie')), isTrue);
+      expect(_str(p.codeUnits), '/feel/the.cookie');
     });
 
     test('setExtension with empty string removes the extension', () {
       final p = PathBuf.fromBytes(_b('/feel/the.force'));
-      expect(p.setExtension(_b('')), isTrue);
-      expect(_str(p.bytes as Uint8List), '/feel/the');
+      expect(p.setExtension(cuN('')), isTrue);
+      expect(_str(p.codeUnits), '/feel/the');
     });
 
     test('withExtension returns a new path', () {
       final p = PathBuf.fromBytes(_b('foo.rs'));
-      final q = p.withExtension(_b('txt'));
-      expect(_str(q.bytes as Uint8List), 'foo.txt');
+      final q = p.withExtension(cuN('txt'));
+      expect(_str(q.codeUnits), 'foo.txt');
       // Original unchanged.
-      expect(_str(p.bytes as Uint8List), 'foo.rs');
+      expect(_str(p.codeUnits), 'foo.rs');
     });
 
     test('equal paths compare equal regardless of redundant separators', () {
@@ -214,7 +216,7 @@ void main() {
 
     test('fromBytes accepts Uint16List', () {
       final p = PathBuf.fromBytes(_w(r'C:\Users'));
-      expect(p.bytes, isA<Uint16List>());
+      expect(p.codeUnits, isA<CodeUnits>());
     });
 
     test('drive prefix is parsed', () {
@@ -249,7 +251,7 @@ void main() {
       // produces "C:\\foo/bar\\baz" — only the new separator is `\`.
       final p = PathBuf.fromBytes(_w(r'C:\foo/bar'))
         ..push(PathBuf.fromBytes(_w('baz')));
-      expect(_str16(p.bytes as Uint16List), r'C:\foo/bar\baz');
+      expect(_str16(p.codeUnits), r'C:\foo/bar\baz');
     });
 
     test('absolute Windows path inspection', () {
@@ -260,7 +262,7 @@ void main() {
       final p = PathBuf.fromBytes(_w(r'C:\Users\me\file.txt'));
       expect(p.isAbsolute(), isTrue);
       expect(p.hasRoot(), isTrue);
-      expect(_str16(p.parent()!.bytes as Uint16List), r'C:\Users\me');
+      expect(_str16(p.parent()!.codeUnits), r'C:\Users\me');
       expect(_str(p.fileName()!), 'file.txt');
       expect(_str(p.fileStem()!), 'file');
       expect(_str(p.extension()!), 'txt');
@@ -272,7 +274,7 @@ void main() {
       final p = PathBuf.fromBytes(_w(r'foo\bar.txt'));
       expect(p.isAbsolute(), isFalse);
       expect(p.hasRoot(), isFalse);
-      expect(_str16(p.parent()!.bytes as Uint16List), 'foo');
+      expect(_str16(p.parent()!.codeUnits), 'foo');
       expect(_str(p.fileName()!), 'bar.txt');
     });
 
@@ -282,7 +284,7 @@ void main() {
       final p = PathBuf.fromBytes(_w(r'\\server\share\file'));
       final parent = p.parent();
       expect(parent, isNotNull);
-      expect(_str16(parent!.bytes as Uint16List), r'\\server\share\');
+      expect(_str16(parent!.codeUnits), r'\\server\share\');
     });
 
     test('verbatim disk path parent retains prefix and trailing separator', () {
@@ -290,7 +292,7 @@ void main() {
       final p = PathBuf.fromBytes(_w(r'\\?\C:\Windows'));
       final parent = p.parent();
       expect(parent, isNotNull);
-      expect(_str16(parent!.bytes as Uint16List), r'\\?\C:\');
+      expect(_str16(parent!.codeUnits), r'\\?\C:\');
     });
 
     test('device namespace path has no parent or file name', () {
@@ -343,7 +345,7 @@ void main() {
       final p = PathBuf.fromBytes(_w(r'C:\Users\me\file.txt'));
       final stripped = p.stripPrefix(PathBuf.fromBytes(_w(r'C:\Users')));
       expect(stripped, isNotNull);
-      expect(_str16(stripped!.bytes as Uint16List), r'me\file.txt');
+      expect(_str16(stripped!.codeUnits), r'me\file.txt');
     });
 
     test('repeated separators collapse during iteration', () {
