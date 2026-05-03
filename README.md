@@ -33,6 +33,7 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 * Data can be passed around without losing fidelity
 * Automatically detects the host platform or allows manual override to work with a different OS behavior
 * Cross-platform support including Linux, Windows, Android, iOS, and macOS
+* Lightweight and minimal, no third party dependencies
 * Does not rely on Dart’s built-in path libraries at all
 
 ---
