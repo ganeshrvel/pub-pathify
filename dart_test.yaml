@@ -1,0 +1,8 @@
+# Run all test files in a single VM instance, serialized.
+#
+# pathify uses a singleton (Pathify.instance) for platform overrides. Running
+# tests in parallel would cause cross-file interference: one file's setUp
+# could be observed by another file's test mid-run. Forcing concurrency to 1
+# guarantees tests execute one after another, and each setUp/tearDown is
+# isolated.
+concurrency: 1

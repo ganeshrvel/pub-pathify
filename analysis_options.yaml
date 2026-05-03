@@ -1,0 +1,54 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.gr.dart"
+    - "**/*.gen.dart"
+    - "**/*.freezed.dart"
+    - "vendor/**"
+    - "resources/**"
+    - "lib/router/router.gr.dart"
+    - "component_templates/**"
+    - "lib/di/di.config.dart"
+    - "test/envs/validators/*.dart"
+
+  errors:
+    prefer_const_declarations: error
+    directives_ordering: warning
+    invalid_use_of_visible_for_testing_member: error
+    missing_required_param: error
+    parameter_assignments: error
+    prefer_const_constructors: error
+    unused_import: warning
+    sort_constructors_first: warning
+    unused_field: warning
+    unawaited_futures: error
+    unnecessary_final: error
+    prefer_single_quotes: error
+    omit_local_variable_types: error
+    always_put_required_named_parameters_first: error
+    avoid_relative_lib_imports: error
+    await_only_futures: error
+    prefer_typing_uninitialized_variables: error
+    deprecated_member_use: error
+    annotate_overrides: error
+
+    sort_pub_dependencies: ignore
+    lines_longer_than_80_chars: ignore
+    avoid_redundant_argument_values: ignore
+    document_ignores: ignore
+    flutter_style_todos: ignore
+    prefer_collection_literals: ignore
+    avoid_catches_without_on_clauses: ignore
+    use_setters_to_change_properties: ignore
+    prefer_int_literals: ignore
+
+linter:
+  rules:
+    public_member_api_docs: false
+    sort_pub_dependencies: false
+    prefer_int_literals: false
+    prefer_collection_literals: false
+    curly_braces_in_flow_control_structures: true
+    annotate_overrides: true
