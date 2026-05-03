@@ -252,6 +252,10 @@ You can explicitly control how paths are interpreted:
 ```dart
 Pathify.instance.overriddenPlatform = PathifyPlatform.linux;
 Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
+Pathify.instance.overriddenPlatform = PathifyPlatform.macOS;
+Pathify.instance.overriddenPlatform = PathifyPlatform.android;
+Pathify.instance.overriddenPlatform = PathifyPlatform.iOS;
+Pathify.instance.overriddenPlatform = PathifyPlatform.fuchsia;
 ```
 
 
