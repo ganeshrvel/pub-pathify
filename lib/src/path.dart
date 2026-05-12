@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
+import 'package:option_result/option.dart';
 import 'package:pathify/src/code_units.dart';
 import 'package:pathify/src/component.dart';
 import 'package:pathify/src/components.dart';
@@ -78,11 +80,27 @@ final class PathBuf {
 
   CodeUnits _units;
 
+  Option<String> _cachedStringLossy = const None();
+  Option<String?> _cachedStr = const None();
+
   // ── String conversion ────────────────────────────────────────────────
 
   /// Decodes the path as a Dart [String] when the code units are valid
   /// Unicode, otherwise returns `null`.
+  ///
+  /// The result is cached on first call. Subsequent calls return the
+  /// cached value without recomputing — including when the result is
+  /// `null` (i.e. the bytes are not valid Unicode).
   String? toStr() {
+    if (_cachedStr case Some(:final value)) {
+      return value;
+    }
+    final computed = _computeStr();
+    _cachedStr = Some(computed);
+    return computed;
+  }
+
+  String? _computeStr() {
     if (_hasForbiddenUnits()) return null;
 
     if (_units is NarrowCodeUnits) {
@@ -112,7 +130,19 @@ final class PathBuf {
 
   /// Decodes the path as a Dart [String], substituting U+FFFD for any
   /// code units that are not valid Unicode under the active encoding.
+  ///
+  /// The result is cached on first call. Subsequent calls return the
+  /// cached value without recomputing.
   String toStringLossy() {
+    if (_cachedStringLossy case Some(:final value)) {
+      return value;
+    }
+    final computed = _computeStringLossy();
+    _cachedStringLossy = Some(computed);
+    return computed;
+  }
+
+  String _computeStringLossy() {
     if (_units is NarrowCodeUnits) {
       return utf8.decode(
         (_units as NarrowCodeUnits).toTypedData(),
@@ -143,6 +173,23 @@ final class PathBuf {
     }
     return out.toString();
   }
+
+  // ── Test accessors ───────────────────────────────────────────────────
+
+  /// Exposes the internal [toStr] cache slot for testing.
+  ///
+  /// Returns [None] when [toStr] has not been called on this instance.
+  /// Returns `Some(null)` when [toStr] was called and returned `null`.
+  /// Returns `Some(value)` when [toStr] was called and returned a valid string.
+  @visibleForTesting
+  Option<String?> get debugCachedStr => _cachedStr;
+
+  /// Exposes the internal [toStringLossy] cache slot for testing.
+  ///
+  /// Returns [None] when [toStringLossy] has not been called on this instance.
+  /// Returns `Some(value)` when [toStringLossy] has been called.
+  @visibleForTesting
+  Option<String> get debugCachedStringLossy => _cachedStringLossy;
 
   bool _hasForbiddenUnits() {
     if (_units is NarrowCodeUnits) {

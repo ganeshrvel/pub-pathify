@@ -33,9 +33,8 @@ Go to [https://pub.dev/packages/pathify#-installing-tab-](https://pub.dev/packag
 * Data can be passed around without losing fidelity
 * Automatically detects the host platform or allows manual override to work with a different OS behavior
 * Cross-platform support including Linux, Windows, Android, iOS, and macOS
-* Lightweight and minimal, no third party dependencies
-* Does not rely on Dart’s built-in path libraries at all
-
+* Lightweight and minimal, with a single third-party dependency on `option_result`
+* Does not rely on Dart's built-in path libraries at all
 
 
 ### Features
@@ -110,6 +109,8 @@ Import the library
 import 'package:pathify/pathify.dart';
 ```
 
+`PathBuf` is an owned, immutable path that holds raw code units — `Uint8List`
+for POSIX paths and `Uint16List` for Windows paths — and exposes operations on top.
 
 
 ### From String
@@ -145,7 +146,9 @@ This means the data remains untouched, unaltered, and not normalized or sanitize
 ### `toStr()`
 
 Returns a Dart `String` only if the underlying bytes form valid Unicode.
-Returns `null` otherwise.
+Returns `null` otherwise. The result is cached on first call; subsequent
+calls return the cached value without recomputing, including when the
+result is `null`.
 
 ```dart
 final p = PathBuf.fromStr('/tmp/file.txt');
@@ -165,7 +168,9 @@ print(p.toStr()); // null (invalid UTF-8)
 
 ### `toStringLossy()`
 
-Always returns a `String`. Invalid sequences are replaced with `�`.
+Always returns a `String`. Invalid sequences are replaced with `�`. The
+result is cached on first call; subsequent calls return the cached value
+without recomputing.
 
 ```dart
 final p = PathBuf.fromStr('/tmp/🚀/file.txt');
@@ -329,7 +334,7 @@ For the full API surface, check: [https://pub.dev/documentation/pathify/latest/p
 
 * This is a translation of Rust’s `std::path` into Dart
 * The translation was done using Claude
-* The library is backed by around 850+ tests that currently pass
+* The library is backed by around 900+ tests that currently pass
 * There may still be edge cases or bugs
 * Behavior may differ from Dart’s standard path libraries. If you notice deviations or unexpected behavior, please raise an issue or PR
 * Please feel free to open an issue or raise a PR if you find something
