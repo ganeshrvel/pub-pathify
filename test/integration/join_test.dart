@@ -655,4 +655,228 @@ void main() {
       expect(joined.toStringLossy(), r'C:\用户\данные\ملف.txt');
     });
   });
+
+  group('join() root edge cases POSIX', () {
+    setUp(() {
+      Pathify.instance.overriddenPlatform = PathifyPlatform.linux;
+    });
+
+    tearDown(Pathify.instance.resetForTesting);
+
+    test('root / joined with normal segment', () {
+      final base = PathBuf.fromBytes(_b('/'));
+      final joined = base.join(PathBuf.fromBytes(_b('something')));
+
+      expect(joined.toStringLossy(), '/something');
+    });
+
+    test('root / joined with nested path', () {
+      final base = PathBuf.fromBytes(_b('/'));
+      final joined = base.join(PathBuf.fromBytes(_b('a/b/c')));
+
+      expect(joined.toStringLossy(), '/a/b/c');
+    });
+
+    test('root / joined with emoji path', () {
+      final base = PathBuf.fromBytes(_b('/'));
+      final joined = base.join(PathBuf.fromBytes(_b('🚀/🔥/file.txt')));
+
+      expect(joined.toStringLossy(), '/🚀/🔥/file.txt');
+    });
+
+    test('root / joined with foreign scripts', () {
+      final base = PathBuf.fromBytes(_b('/'));
+      final joined = base.join(
+        PathBuf.fromBytes(_b('用户/данные/ملف.txt')),
+      );
+
+      expect(joined.toStringLossy(), '/用户/данные/ملف.txt');
+    });
+
+    test('root / joined with windows-style path', () {
+      final base = PathBuf.fromBytes(_b('/'));
+      final joined = base.join(
+        PathBuf.fromBytes(_b(r'C:\foo\bar')),
+      );
+
+      expect(joined.toStringLossy(), r'/C:\foo\bar');
+    });
+
+    test('root / joined with UNC-style path', () {
+      final base = PathBuf.fromBytes(_b('/'));
+      final joined = base.join(
+        PathBuf.fromBytes(_b(r'\\server\share')),
+      );
+
+      expect(joined.toStringLossy(), r'/\\server\share');
+    });
+  });
+
+  group('join() root edge cases Windows', () {
+    setUp(() {
+      Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
+    });
+
+    tearDown(Pathify.instance.resetForTesting);
+
+    test(r'root \ joined with normal segment', () {
+      final base = PathBuf.fromBytes(_w(r'\'));
+      final joined = base.join(PathBuf.fromBytes(_w('something')));
+
+      expect(joined.toStringLossy(), r'\something');
+    });
+
+    test(r'root \ joined with nested path', () {
+      final base = PathBuf.fromBytes(_w(r'\'));
+      final joined = base.join(PathBuf.fromBytes(_w(r'a\b\c')));
+
+      expect(joined.toStringLossy(), r'\a\b\c');
+    });
+
+    test(r'root \ joined with emoji path', () {
+      final base = PathBuf.fromBytes(_w(r'\'));
+      final joined = base.join(
+        PathBuf.fromBytes(_w(r'🚀\🔥\file.txt')),
+      );
+
+      expect(joined.toStringLossy(), r'\🚀\🔥\file.txt');
+    });
+
+    test(r'root \ joined with foreign scripts', () {
+      final base = PathBuf.fromBytes(_w(r'\'));
+      final joined = base.join(
+        PathBuf.fromBytes(_w(r'用户\данные\ملف.txt')),
+      );
+
+      expect(joined.toStringLossy(), r'\用户\данные\ملف.txt');
+    });
+
+    test(r'root \ joined with POSIX path', () {
+      final base = PathBuf.fromBytes(_w(r'\'));
+      final joined = base.join(
+        PathBuf.fromBytes(_w('/a/b/c')),
+      );
+
+      expect(joined.toStringLossy(), '/a/b/c');
+    });
+  });
+
+  group('join() Windows prefix roots POSIX behavior', () {
+    setUp(() {
+      Pathify.instance.overriddenPlatform = PathifyPlatform.linux;
+    });
+
+    tearDown(Pathify.instance.resetForTesting);
+
+    test('Disk root literal', () {
+      final base = PathBuf.fromBytes(_b('C:'));
+      final joined = base.join(PathBuf.fromBytes(_b('foo')));
+
+      expect(joined.toStringLossy(), 'C:/foo');
+    });
+
+    test('UNC root literal', () {
+      final base = PathBuf.fromBytes(_b(r'\\server\share'));
+      final joined = base.join(PathBuf.fromBytes(_b('foo')));
+
+      expect(joined.toStringLossy(), r'\\server\share/foo');
+    });
+
+    test('DeviceNS root literal', () {
+      final base = PathBuf.fromBytes(_b(r'\\.\COM1'));
+      final joined = base.join(PathBuf.fromBytes(_b('foo')));
+
+      expect(joined.toStringLossy(), r'\\.\COM1/foo');
+    });
+
+    test('Verbatim root literal', () {
+      final base = PathBuf.fromBytes(_b(r'\\?\'));
+      final joined = base.join(PathBuf.fromBytes(_b('foo')));
+
+      expect(joined.toStringLossy(), r'\\?\/foo');
+    });
+
+    test('VerbatimUNC root literal', () {
+      final base = PathBuf.fromBytes(
+        _b(r'\\?\UNC\server\share'),
+      );
+      final joined = base.join(PathBuf.fromBytes(_b('foo')));
+
+      expect(
+        joined.toStringLossy(),
+        r'\\?\UNC\server\share/foo',
+      );
+    });
+
+    test('VerbatimDisk root literal', () {
+      final base = PathBuf.fromBytes(_b(r'\\?\C:\'));
+      final joined = base.join(PathBuf.fromBytes(_b('foo')));
+
+      expect(joined.toStringLossy(), r'\\?\C:\/foo');
+    });
+  });
+
+  group('join() Windows prefix roots Windows behavior', () {
+    setUp(() {
+      Pathify.instance.overriddenPlatform = PathifyPlatform.windows;
+    });
+
+    tearDown(Pathify.instance.resetForTesting);
+
+    test('Disk root', () {
+      final base = PathBuf.fromBytes(_w(r'C:\'));
+      final joined = base.join(PathBuf.fromBytes(_w('foo')));
+
+      expect(joined.toStringLossy(), r'C:\foo');
+    });
+
+    test('Disk drive-relative root', () {
+      final base = PathBuf.fromBytes(_w('C:'));
+      final joined = base.join(PathBuf.fromBytes(_w(r'foo\bar')));
+
+      expect(joined.toStringLossy(), r'C:foo\bar');
+    });
+
+    test('UNC root', () {
+      final base = PathBuf.fromBytes(
+        _w(r'\\server\share'),
+      );
+      final joined = base.join(PathBuf.fromBytes(_w('foo')));
+
+      expect(joined.toStringLossy(), r'\\server\share\foo');
+    });
+
+    test('DeviceNS root', () {
+      final base = PathBuf.fromBytes(_w(r'\\.\COM1'));
+      final joined = base.join(PathBuf.fromBytes(_w('foo')));
+
+      expect(joined.toStringLossy(), r'\\.\COM1\foo');
+    });
+
+    test('Verbatim root', () {
+      final base = PathBuf.fromBytes(_w(r'\\?\'));
+      final joined = base.join(PathBuf.fromBytes(_w('foo')));
+
+      expect(joined.toStringLossy(), r'\\?\\foo');
+    });
+
+    test('VerbatimUNC root', () {
+      final base = PathBuf.fromBytes(
+        _w(r'\\?\UNC\server\share'),
+      );
+      final joined = base.join(PathBuf.fromBytes(_w('foo')));
+
+      expect(
+        joined.toStringLossy(),
+        r'\\?\UNC\server\share\foo',
+      );
+    });
+
+    test('VerbatimDisk root', () {
+      final base = PathBuf.fromBytes(_w(r'\\?\C:\'));
+      final joined = base.join(PathBuf.fromBytes(_w('foo')));
+
+      expect(joined.toStringLossy(), r'\\?\C:\foo');
+    });
+  });
 }
