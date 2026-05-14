@@ -1,5 +1,9 @@
 ### Changelog
 
+#### 1.0.2
+
+* Refactored to `UnixPaths` and `WindowsPaths` constant classes
+
 #### 1.0.1
 
 * Added `UnixPathConstants` and `WindowsPathConstants` constant classes
