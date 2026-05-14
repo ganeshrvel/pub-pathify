@@ -1,6 +1,6 @@
 ### Changelog
 
-#### 1.0.3+1
+#### 1.0.3+2
 
 * All `_units` mutations routed through `_mutateUnits` to guarantee cache invalidation
 

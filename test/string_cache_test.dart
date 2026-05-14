@@ -5,6 +5,33 @@ import 'package:pathify/pathify.dart';
 import 'package:test/test.dart';
 
 void main() {
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  void expectStrCachePopulated(PathBuf path) {
+    expect(path.debugCachedStr, isA<Some<String?>>());
+  }
+
+  void expectLossyCachePopulated(PathBuf path) {
+    expect(path.debugCachedStringLossy, isA<Some<String>>());
+  }
+
+  void expectCachePopulated(PathBuf path) {
+    expectStrCachePopulated(path);
+    expectLossyCachePopulated(path);
+  }
+
+  void expectCacheEmpty(PathBuf path) {
+    expect(path.debugCachedStr, isA<None<String?>>());
+    expect(path.debugCachedStringLossy, isA<None<String>>());
+  }
+
+  void populateCache(PathBuf path) {
+    path.toStr();
+
+    //ignore: cascade_invocations
+    path.toStringLossy();
+  }
+
   group('PathBuf.toStr cache', () {
     test('cache is empty before first call', () {
       final path = PathBuf.fromStr('/foo/bar');
@@ -471,6 +498,473 @@ void main() {
 
       expect(path.debugCachedStringLossy, isA<Some<String>>());
       expect(identical(path.toStringLossy(), result), isTrue);
+    });
+  });
+  group('cache invalidation — push (relative)', () {
+    test('push invalidates and reflects new path', () {
+      final path = PathBuf.fromStr('/foo');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.push(PathBuf.fromStr('bar'));
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+    });
+
+    test('push with trailing sep on receiver', () {
+      final path = PathBuf.fromStr('/foo/');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.push(PathBuf.fromStr('bar'));
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+    });
+
+    test('push multiple times invalidates each time', () {
+      final path = PathBuf.fromStr('/foo');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.push(PathBuf.fromStr('bar'));
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.push(PathBuf.fromStr('baz'));
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar/baz'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar/baz'));
+      expectCachePopulated(path);
+    });
+  });
+
+  group('cache invalidation — push (absolute replace)', () {
+    test('absolute push replaces path and invalidates cache', () {
+      final path = PathBuf.fromStr('/foo/bar');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.push(PathBuf.fromStr('/baz'));
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/baz'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/baz'));
+      expectCachePopulated(path);
+    });
+
+    test('absolute push over cached null-toStr path', () {
+      final path = PathBuf.fromBytes(Uint8List.fromList([0xFF, 0xFE]));
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.push(PathBuf.fromStr('/valid'));
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/valid'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/valid'));
+      expectCachePopulated(path);
+    });
+  });
+
+  group('cache invalidation — pop', () {
+    test('pop invalidates and reflects parent path', () {
+      final path = PathBuf.fromStr('/foo/bar');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.pop();
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo'));
+      expectCachePopulated(path);
+    });
+
+    test('pop on single component path', () {
+      final path = PathBuf.fromStr('/foo');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.pop();
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/'));
+      expectCachePopulated(path);
+    });
+
+    test('pop returns false on root and does not invalidate cache', () {
+      final path = PathBuf.fromStr('/');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      final result = path.pop();
+
+      expect(result, isFalse);
+      expectCachePopulated(path);
+    });
+
+    test('pop multiple times invalidates each time', () {
+      final path = PathBuf.fromStr('/foo/bar/baz');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.pop();
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.pop();
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo'));
+      expectCachePopulated(path);
+    });
+  });
+
+  group('cache invalidation — setFileName', () {
+    test('setFileName invalidates and reflects new name', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.setFileName(PathBuf.fromStr('baz.txt').codeUnits);
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/baz.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/baz.txt'));
+      expectCachePopulated(path);
+    });
+
+    test('setFileName on path ending in separator', () {
+      final path = PathBuf.fromStr('/foo/');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.setFileName(PathBuf.fromStr('bar.txt').codeUnits);
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/bar.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/bar.txt'));
+      expectCachePopulated(path);
+    });
+
+    test('setFileName called twice invalidates each time', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setFileName(PathBuf.fromStr('baz.txt').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/baz.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/baz.txt'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setFileName(PathBuf.fromStr('qux.txt').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/qux.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/qux.txt'));
+      expectCachePopulated(path);
+    });
+  });
+
+  group('cache invalidation — setExtension', () {
+    test('setExtension invalidates and reflects new extension', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.setExtension(PathBuf.fromStr('md').codeUnits);
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.md'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.md'));
+      expectCachePopulated(path);
+    });
+
+    test('setExtension with empty extension removes extension', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.setExtension(PathBuf.empty().codeUnits);
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+    });
+
+    test('setExtension called twice invalidates each time', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setExtension(PathBuf.fromStr('md').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.md'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.md'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setExtension(PathBuf.fromStr('rs').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.rs'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.rs'));
+      expectCachePopulated(path);
+    });
+
+    test(
+      'setExtension returns false on path with no fileName, cache unchanged',
+      () {
+        final path = PathBuf.fromStr('/');
+        populateCache(path);
+        expectCachePopulated(path);
+
+        final result = path.setExtension(PathBuf.fromStr('md').codeUnits);
+
+        expect(result, isFalse);
+        expectCachePopulated(path);
+      },
+    );
+  });
+
+  group('cache invalidation — addExtension', () {
+    test('addExtension invalidates and reflects appended extension', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.addExtension(PathBuf.fromStr('gz').codeUnits);
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.txt.gz'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.txt.gz'));
+      expectCachePopulated(path);
+    });
+
+    test('addExtension called twice invalidates each time', () {
+      final path = PathBuf.fromStr('/foo/bar');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.addExtension(PathBuf.fromStr('txt').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.txt'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.addExtension(PathBuf.fromStr('gz').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.txt.gz'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.txt.gz'));
+      expectCachePopulated(path);
+    });
+
+    test(
+      'addExtension returns false on path with no fileName, cache unchanged',
+      () {
+        final path = PathBuf.fromStr('/');
+        populateCache(path);
+        expectCachePopulated(path);
+
+        final result = path.addExtension(PathBuf.fromStr('gz').codeUnits);
+
+        expect(result, isFalse);
+        expectCachePopulated(path);
+      },
+    );
+  });
+
+  group('cache invalidation — clear', () {
+    test('clear invalidates and path becomes empty', () {
+      final path = PathBuf.fromStr('/foo/bar');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.clear();
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals(''));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals(''));
+      expectCachePopulated(path);
+    });
+
+    test('clear on already empty path invalidates cache', () {
+      final path = PathBuf.empty();
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.clear();
+
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals(''));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals(''));
+      expectCachePopulated(path);
+    });
+  });
+
+  group('cache invalidation — combined mutation sequences', () {
+    test('push then pop restores original path with fresh cache', () {
+      final path = PathBuf.fromStr('/foo');
+      populateCache(path);
+      expectCachePopulated(path);
+
+      path.push(PathBuf.fromStr('bar'));
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.pop();
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo'));
+      expectCachePopulated(path);
+    });
+
+    test('setFileName then setExtension invalidates each time', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setFileName(PathBuf.fromStr('baz.txt').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/baz.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/baz.txt'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setExtension(PathBuf.fromStr('md').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/baz.md'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/baz.md'));
+      expectCachePopulated(path);
+    });
+
+    test('push then clear invalidates each time', () {
+      final path = PathBuf.fromStr('/foo');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.push(PathBuf.fromStr('bar'));
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.clear();
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals(''));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals(''));
+      expectCachePopulated(path);
+    });
+
+    test(
+      'toStr and toStringLossy stay consistent through mutation sequence',
+      () {
+        final path = PathBuf.fromStr('/foo')..push(PathBuf.fromStr('bar'));
+        expect(path.toStr(), equals(path.toStringLossy()));
+
+        path.push(PathBuf.fromStr('baz'));
+        expect(path.toStr(), equals(path.toStringLossy()));
+
+        path.pop();
+        expect(path.toStr(), equals(path.toStringLossy()));
+
+        path.setExtension(PathBuf.fromStr('txt').codeUnits);
+        expect(path.toStr(), equals(path.toStringLossy()));
+      },
+    );
+
+    test('addExtension then setExtension invalidates each time', () {
+      final path = PathBuf.fromStr('/foo/bar');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.addExtension(PathBuf.fromStr('txt').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.txt'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.txt'));
+      expectCachePopulated(path);
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.setExtension(PathBuf.fromStr('md').codeUnits);
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/foo/bar.md'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/foo/bar.md'));
+      expectCachePopulated(path);
+    });
+
+    test('clear then push starts fresh', () {
+      final path = PathBuf.fromStr('/foo/bar');
+
+      populateCache(path);
+      expectCachePopulated(path);
+      path.clear();
+      expectCacheEmpty(path);
+
+      path.push(PathBuf.fromStr('/new/path'));
+      expectCacheEmpty(path);
+      expect(path.toStr(), equals('/new/path'));
+      expectStrCachePopulated(path);
+      expect(path.toStringLossy(), equals('/new/path'));
+      expectCachePopulated(path);
     });
   });
 }
