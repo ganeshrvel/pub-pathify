@@ -4,9 +4,6 @@ import 'package:test/test.dart';
 
 import 'integration/_helpers.dart';
 
-
-
-
 Components _unixComponents(String path) {
   final cu = cuN(path);
   return Components.start(
