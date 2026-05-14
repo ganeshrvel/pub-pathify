@@ -209,4 +209,268 @@ void main() {
     expect(identical(path.toStr(), str), isTrue);
     expect(identical(path.toStringLossy(), lossy), isTrue);
   });
+
+  group('cache invalidation after mutation', () {
+    test('toStr cache is cleared after push', () {
+      final path = PathBuf.fromStr('/foo')..toStr();
+
+      expect(path.debugCachedStr, isA<Some<String?>>());
+
+      path.push(PathBuf.fromStr('bar'));
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.toStr(), equals('/foo/bar'));
+    });
+
+    test('toStringLossy cache is cleared after push', () {
+      final path = PathBuf.fromStr('/foo')..toStringLossy();
+
+      expect(path.debugCachedStringLossy, isA<Some<String>>());
+
+      path.push(PathBuf.fromStr('bar'));
+
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStringLossy(), equals('/foo/bar'));
+    });
+
+    test('both caches cleared after pop', () {
+      final path = PathBuf.fromStr('/foo/bar')
+        ..toStr()
+        ..toStringLossy()
+        ..pop();
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals('/foo'));
+    });
+
+    test('both caches cleared after setFileName', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')
+        ..toStr()
+        ..toStringLossy()
+        ..setFileName(PathBuf.fromStr('baz.txt').codeUnits);
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals('/foo/baz.txt'));
+    });
+
+    test('both caches cleared after setExtension', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')
+        ..toStr()
+        ..toStringLossy()
+        ..setExtension(PathBuf.fromStr('md').codeUnits);
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals('/foo/bar.md'));
+    });
+
+    test('both caches cleared after addExtension', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')
+        ..toStr()
+        ..toStringLossy()
+        ..addExtension(PathBuf.fromStr('gz').codeUnits);
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals('/foo/bar.txt.gz'));
+    });
+
+    test('both caches cleared after clear', () {
+      final path = PathBuf.fromStr('/foo/bar')
+        ..toStr()
+        ..toStringLossy()
+        ..clear();
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals(''));
+    });
+
+    test('cache repopulates correctly after invalidation', () {
+      final path = PathBuf.fromStr('/foo')
+        ..toStr()
+        ..push(PathBuf.fromStr('bar'));
+
+      final result = path.toStr();
+
+      expect(path.debugCachedStr, isA<Some<String?>>());
+      expect((path.debugCachedStr as Some<String?>).value, equals(result));
+      expect(identical(path.toStr(), result), isTrue);
+    });
+
+    test('absolute push replaces path and invalidates cache', () {
+      final path = PathBuf.fromStr('/foo/bar')
+        ..toStr()
+        ..toStringLossy()
+        ..push(PathBuf.fromStr('/baz'));
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals('/baz'));
+    });
+  });
+
+  group('cache invalidation — multiple mutations in sequence', () {
+    test('cache reflects each mutation in sequence', () {
+      final path = PathBuf.fromStr('/foo')..push(PathBuf.fromStr('bar'));
+      expect(path.toStr(), equals('/foo/bar'));
+
+      path.push(PathBuf.fromStr('baz'));
+      expect(path.toStr(), equals('/foo/bar/baz'));
+
+      path.pop();
+      expect(path.toStr(), equals('/foo/bar'));
+
+      path.pop();
+      expect(path.toStr(), equals('/foo'));
+    });
+
+    test('cache is fresh after each setExtension call', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')
+        ..setExtension(PathBuf.fromStr('md').codeUnits);
+      expect(path.toStr(), equals('/foo/bar.md'));
+      expect(path.debugCachedStr, isA<Some<String?>>());
+
+      path.setExtension(PathBuf.fromStr('rs').codeUnits);
+      expect(path.toStr(), equals('/foo/bar.rs'));
+    });
+
+    test('toStr and toStringLossy stay consistent across mutations', () {
+      final path = PathBuf.fromStr('/foo/bar')
+        ..toStr()
+        ..toStringLossy()
+        ..push(PathBuf.fromStr('baz'));
+
+      expect(path.toStr(), equals(path.toStringLossy()));
+    });
+  });
+
+  group('cache with invalid unicode bytes after mutation', () {
+    test('push of invalid bytes invalidates and recaches as null toStr', () {
+      final path = PathBuf.fromStr('/foo')..toStr();
+
+      final invalid = PathBuf.fromBytes(Uint8List.fromList([0xFF, 0xFE]));
+      path.push(invalid);
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.toStr(), isNull);
+      expect(path.debugCachedStr, isA<Some<String?>>());
+      expect((path.debugCachedStr as Some<String?>).value, isNull);
+    });
+
+    test(
+      'toStringLossy after push of invalid bytes returns replacement char',
+      () {
+        final path = PathBuf.fromStr('/foo');
+        final invalid = PathBuf.fromBytes(Uint8List.fromList([0xFF, 0xFE]));
+        path.push(invalid);
+
+        final result = path.toStringLossy();
+
+        expect(result, contains('\uFFFD'));
+        expect(path.debugCachedStringLossy, isA<Some<String>>());
+        expect(identical(path.toStringLossy(), result), isTrue);
+      },
+    );
+  });
+
+  group('cache with empty path', () {
+    test('toStr on empty path returns empty string', () {
+      final path = PathBuf.empty();
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+
+      final result = path.toStr();
+
+      expect(result, equals(''));
+      expect(path.debugCachedStr, isA<Some<String?>>());
+      expect(identical(path.toStr(), result), isTrue);
+    });
+
+    test('toStringLossy on empty path returns empty string', () {
+      final path = PathBuf.empty();
+      final result = path.toStringLossy();
+
+      expect(result, equals(''));
+      expect(path.debugCachedStringLossy, isA<Some<String>>());
+      expect(identical(path.toStringLossy(), result), isTrue);
+    });
+
+    test('clear produces same cache state as PathBuf.empty', () {
+      final path = PathBuf.fromStr('/foo/bar')
+        ..toStr()
+        ..toStringLossy()
+        ..clear();
+
+      expect(path.debugCachedStr, isA<None<String?>>());
+      expect(path.debugCachedStringLossy, isA<None<String>>());
+      expect(path.toStr(), equals(''));
+      expect(path.toStringLossy(), equals(''));
+    });
+  });
+
+  group('cache on cloned paths via non-mutating builders', () {
+    test('join result starts with empty cache', () {
+      final a = PathBuf.fromStr('/foo')..toStr();
+      final joined = a.join(PathBuf.fromStr('bar'));
+
+      expect(joined.debugCachedStr, isA<None<String?>>());
+      expect(joined.debugCachedStringLossy, isA<None<String>>());
+    });
+
+    test('withFileName result starts with empty cache', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')..toStr();
+      final updated = path.withFileName(PathBuf.fromStr('baz.txt').codeUnits);
+
+      expect(updated.debugCachedStr, isA<None<String?>>());
+      expect(updated.debugCachedStringLossy, isA<None<String>>());
+    });
+
+    test('withExtension result starts with empty cache', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')..toStr();
+      final updated = path.withExtension(PathBuf.fromStr('md').codeUnits);
+
+      expect(updated.debugCachedStr, isA<None<String?>>());
+      expect(updated.debugCachedStringLossy, isA<None<String>>());
+    });
+
+    test('withAddedExtension result starts with empty cache', () {
+      final path = PathBuf.fromStr('/foo/bar.txt')..toStr();
+      final updated = path.withAddedExtension(PathBuf.fromStr('gz').codeUnits);
+
+      expect(updated.debugCachedStr, isA<None<String?>>());
+      expect(updated.debugCachedStringLossy, isA<None<String>>());
+    });
+
+    test('original cache unaffected by non-mutating builder', () {
+      final path = PathBuf.fromStr('/foo/bar.txt');
+      final cached = path.toStr();
+
+      path.withFileName(PathBuf.fromStr('baz.txt').codeUnits);
+
+      expect(path.debugCachedStr, isA<Some<String?>>());
+      expect((path.debugCachedStr as Some<String?>).value, equals(cached));
+    });
+  });
+
+  group('cache on null-byte paths', () {
+    test('toStr with null byte returns null and caches it', () {
+      final path = PathBuf.fromBytes(Uint8List.fromList([0x2F, 0x00, 0x61]));
+
+      expect(path.toStr(), isNull);
+      expect(path.debugCachedStr, isA<Some<String?>>());
+      expect((path.debugCachedStr as Some<String?>).value, isNull);
+      expect(identical(path.toStr(), path.toStr()), isTrue);
+    });
+
+    test('toStringLossy with null byte returns null substitution', () {
+      final path = PathBuf.fromBytes(Uint8List.fromList([0x2F, 0x00, 0x61]));
+      final result = path.toStringLossy();
+
+      expect(path.debugCachedStringLossy, isA<Some<String>>());
+      expect(identical(path.toStringLossy(), result), isTrue);
+    });
+  });
 }

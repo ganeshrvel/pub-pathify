@@ -1122,4 +1122,90 @@ void main() {
       },
     );
   });
+
+  group('equality and hashCode', () {
+    test('different paths are not equal', () {
+      final a = PathBuf.fromStr('/foo/bar');
+      final b = PathBuf.fromStr('/foo/baz');
+
+      expect(a, isNot(equals(b)));
+    });
+
+    test('path is equal to itself', () {
+      final a = PathBuf.fromStr('/foo/bar');
+
+      expect(a, equals(a));
+    });
+
+    test('trailing separator does not affect equality', () {
+      final a = PathBuf.fromStr('/foo/bar');
+      final b = PathBuf.fromStr('/foo/bar/');
+
+      expect(a, equals(b));
+    });
+
+    test('paths with different separators are equal on same platform', () {
+      final a = PathBuf.fromStr('/foo/bar');
+      final b = PathBuf.fromStr('/foo/bar');
+
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('empty paths are equal', () {
+      final a = PathBuf.empty();
+      final b = PathBuf.empty();
+
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('dot segments are ignored during component comparison', () {
+      final a = PathBuf.fromStr('foo/./bar');
+      final b = PathBuf.fromStr('foo/bar');
+
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('unequal paths produce different hash codes', () {
+      final a = PathBuf.fromStr('/foo/bar');
+      final b = PathBuf.fromStr('/foo/baz');
+
+      expect(a.hashCode, isNot(equals(b.hashCode)));
+    });
+
+    test('path after mutation equals expected path', () {
+      final a = PathBuf.fromStr('/foo')..push(PathBuf.fromStr('bar'));
+
+      expect(a, equals(PathBuf.fromStr('/foo/bar')));
+      expect(a.hashCode, equals(PathBuf.fromStr('/foo/bar').hashCode));
+    });
+
+    test('path after mutation is not equal to original', () {
+      final a = PathBuf.fromStr('/foo');
+      final b = PathBuf.fromStr('/foo');
+      a.push(PathBuf.fromStr('bar'));
+
+      expect(a, isNot(equals(b)));
+    });
+
+    test('symmetry — a equals b implies b equals a', () {
+      final a = PathBuf.fromStr('/foo/bar');
+      final b = PathBuf.fromStr('/foo/bar');
+
+      expect(a, equals(b));
+      expect(b, equals(a));
+    });
+
+    test('transitivity — a equals b and b equals c implies a equals c', () {
+      final a = PathBuf.fromStr('/foo/bar');
+      final b = PathBuf.fromStr('/foo/bar');
+      final c = PathBuf.fromStr('/foo/bar');
+
+      expect(a, equals(b));
+      expect(b, equals(c));
+      expect(a, equals(c));
+    });
+  });
 }

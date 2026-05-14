@@ -1,5 +1,9 @@
 ### Changelog
 
+#### 1.0.3
+
+* All `_units` mutations routed through `_mutateUnits` to guarantee cache invalidation
+
 #### 1.0.2
 
 * Refactored to `UnixPaths` and `WindowsPaths` constant classes

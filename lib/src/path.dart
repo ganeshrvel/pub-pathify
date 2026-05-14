@@ -78,6 +78,8 @@ final class PathBuf {
     return PathBuf._(NarrowCodeUnits(Uint8List(0)));
   }
 
+  // All mutations to _units must go through _mutateUnits. Never assign
+  // _units directly outside of that method.
   CodeUnits _units;
 
   Option<String> _cachedStringLossy = const None();
@@ -410,7 +412,7 @@ final class PathBuf {
 
     final pathIsAbsolute = path.isAbsolute() || theirPrefix != null;
     if (pathIsAbsolute) {
-      _units = path._units;
+      _mutateUnits(path._units);
       return;
     }
 
@@ -454,7 +456,7 @@ final class PathBuf {
 
     // Reassemble. Drive prefixes get no automatic separator after them;
     // non-drive non-empty prefixes do.
-    var result = _emptyOfSameWidth();
+    var result = _units.emptyOfSameWidth();
     var needSep = false;
     for (final c in buf) {
       if (needSep && c is! ComponentRootDir) {
@@ -472,13 +474,13 @@ final class PathBuf {
       }
     }
 
-    _units = result;
+    _mutateUnits(result);
   }
 
   bool pop() {
     final p = parent();
     if (p == null) return false;
-    _units = p._units;
+    _mutateUnits(p._units);
     return true;
   }
 
@@ -534,7 +536,7 @@ final class PathBuf {
 
   /// Empties the path.
   void clear() {
-    _units = _emptyOfSameWidth();
+    _mutateUnits(_units.emptyOfSameWidth());
   }
 
   // ── Non-mutating builders ────────────────────────────────────────────
@@ -593,14 +595,23 @@ final class PathBuf {
 
   // ── Internal mutation primitives ─────────────────────────────────────
 
-  CodeUnits _emptyOfSameWidth() => _units.emptyOfSameWidth();
+  /// The single choke point for all [_units] reassignments.
+  ///
+  /// Clears the string caches so stale values are never returned after a
+  /// mutation. All internal code that needs to update [_units] must call
+  /// this method instead of assigning [_units] directly.
+  void _mutateUnits(CodeUnits newUnits) {
+    _units = newUnits;
+    _cachedStr = const None();
+    _cachedStringLossy = const None();
+  }
 
   void _truncate(int newLength) {
-    _units = _units.sublistView(0, newLength);
+    _mutateUnits(_units.sublistView(0, newLength));
   }
 
   void _appendCodeUnit(int unit) {
-    _units = _units.appendCodeUnit(unit);
+    _mutateUnits(_units.appendCodeUnit(unit));
   }
 
   void _appendCodeUnits(CodeUnits src) {
@@ -609,9 +620,9 @@ final class PathBuf {
       // This happens when the caller passes a `CodeUnits` of the wrong
       // width (e.g. an extension built as Uint8List for a Windows path).
       // We convert by zero-extending or low-byte-truncating as needed.
-      _units = _units.concat(_coerceWidth(src));
+      _mutateUnits(_units.concat(_coerceWidth(src)));
     } else {
-      _units = _units.concat(src);
+      _mutateUnits(_units.concat(src));
     }
   }
 
