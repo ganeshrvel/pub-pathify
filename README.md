@@ -337,7 +337,7 @@ For the full API surface, check: [https://pub.dev/documentation/pathify/latest/p
 
 * This is a translation of Rust’s `std::path` into Dart
 * The translation was done using Claude
-* The library is backed by around 900+ tests that currently pass
+* The library is backed by around 1000+ tests that currently pass
 * There may still be edge cases or bugs
 * Behavior may differ from Dart’s standard path libraries. If you notice deviations or unexpected behavior, please raise an issue or PR
 * Please feel free to open an issue or raise a PR if you find something

@@ -317,5 +317,92 @@ void main() {
 
       expect(p.parent, returnsNormally);
     });
+
+    // ─────────────────────────────────────────────
+    // GETPARENTPATH PARITY CASES
+    // ─────────────────────────────────────────────
+
+    test('dot returns non-null empty parent', () {
+      final p = PathBuf.fromBytes(_b('.'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.isEmpty, isTrue);
+    });
+
+    test('double dot returns non-null empty parent', () {
+      final p = PathBuf.fromBytes(_b('..'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.isEmpty, isTrue);
+    });
+
+    test('single file component returns non-null empty parent', () {
+      final p = PathBuf.fromBytes(_b('file.txt'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.isEmpty, isTrue);
+    });
+
+    test('single folder component returns non-null empty parent', () {
+      final p = PathBuf.fromBytes(_b('folder'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.isEmpty, isTrue);
+    });
+
+    test('../file.txt parent is ..', () {
+      final p = PathBuf.fromBytes(_b('../file.txt'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.toStringLossy(), '..');
+    });
+
+    test('./file.txt parent is .', () {
+      final p = PathBuf.fromBytes(_b('./file.txt'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.toStringLossy(), '.');
+    });
+
+    test('../../parent/folder/file.txt parent is ../../parent/folder', () {
+      final p = PathBuf.fromBytes(_b('../../parent/folder/file.txt'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.toStringLossy(), '../../parent/folder');
+    });
+
+    test('folder/../other/file.txt parent is folder/../other', () {
+      final p = PathBuf.fromBytes(_b('folder/../other/file.txt'));
+      final parent = p.parent();
+      expect(parent, isNotNull);
+      expect(parent!.toStringLossy(), 'folder/../other');
+    });
+
+    test('root / returns null', () {
+      final p = PathBuf.fromBytes(_b('/'));
+      expect(p.parent(), isNull);
+    });
+
+    test('empty path returns null', () {
+      final p = PathBuf.fromBytes(_b(''));
+      expect(p.parent(), isNull);
+    });
+
+    // ─────────────────────────────────────────────
+    // MIXED SLASHES CORRECTIONS
+    // ─────────────────────────────────────────────
+
+    test(r'C:\foo/bar\something parent is C:\foo on Unix', () {
+      final p = PathBuf.fromBytes(_b(r'C:\foo/bar\something'));
+      expect(p.parent()!.toStringLossy(), r'C:\foo');
+    });
+
+    test(
+      r'C:\foo/bar\something/t\a parent is C:\foo/bar\something on Unix',
+      () {
+        final p = PathBuf.fromBytes(_b(r'C:\foo/bar\something/t\a'));
+        expect(p.parent()!.toStringLossy(), r'C:\foo/bar\something');
+      },
+    );
   });
 }
