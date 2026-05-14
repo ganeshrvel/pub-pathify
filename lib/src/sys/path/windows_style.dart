@@ -1,3 +1,4 @@
+import 'package:pathify/src/constants.dart';
 import 'package:pathify/src/path_bytes.dart';
 
 /// Windows path predicates and constants.
@@ -9,10 +10,10 @@ class WindowsStyle {
   WindowsStyle._();
 
   /// The code-unit value of the canonical path separator: `\`.
-  static const int mainSep = PathBytes.backslash;
+  static const int mainSep = WindowsPathConstants.mainSeparator;
 
   /// The canonical path separator as a single-character string: `\`.
-  static const String mainSepStr = r'\';
+  static const String mainSepStr = WindowsPathConstants.mainSeparatorStr;
 
   /// Windows paths have prefix components (drive, UNC, verbatim, etc.).
   static const bool hasPrefixes = true;

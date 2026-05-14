@@ -1,6 +1,5 @@
-import 'package:pathify/src/code_units.dart';
+import 'package:pathify/pathify.dart';
 import 'package:pathify/src/path_bytes.dart';
-import 'package:pathify/src/prefix.dart';
 
 /// Windows prefix parser.
 ///
@@ -33,14 +32,18 @@ class WindowsPrefix {
   static Prefix? parsePrefix(CodeUnits path) {
     final parser = _PrefixParser._build(path, _lookupWindow).asSlice();
 
-    final afterTwoBack = parser.stripPrefix(r'\\');
+    final afterTwoBack = parser.stripPrefix(
+      WindowsPathConstants.standardUncPrefix,
+    );
     if (afterTwoBack != null) {
       // Path begins with `\\`. Branch on the next two characters to decide
       // between verbatim (`?\`), device namespace (`.\`), and UNC.
-      final afterVerb = afterTwoBack.stripPrefix(r'?\');
+      final afterVerb = afterTwoBack.stripPrefix(
+        WindowsPathConstants.verbatimMarker,
+      );
       if (afterVerb != null && _isExactVerbatimPrefix(path)) {
         // Path begins with `\\?\`.
-        final afterUnc = afterVerb.stripPrefix(r'UNC\');
+        final afterUnc = afterVerb.stripPrefix(WindowsPathConstants.uncMarker);
         if (afterUnc != null) {
           // `\\?\UNC\server\share`.
           final remaining = afterUnc.finish();
@@ -64,7 +67,9 @@ class WindowsPrefix {
         return Verbatim(component);
       }
 
-      final afterDevice = afterTwoBack.stripPrefix(r'.\');
+      final afterDevice = afterTwoBack.stripPrefix(
+        WindowsPathConstants.deviceNsMarker,
+      );
       if (afterDevice != null) {
         // `\\.\<device>`.
         final remaining = afterDevice.finish();

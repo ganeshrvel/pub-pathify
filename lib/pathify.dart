@@ -8,5 +8,6 @@ library;
 
 import 'dart:typed_data';
 
+export 'src/constants.dart';
 export 'src/path.dart';
 export 'src/pathify_platform.dart';

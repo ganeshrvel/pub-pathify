@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:pathify/src/constants.dart';
 import 'package:pathify/src/path_bytes.dart';
 
 /// POSIX path predicates and constants.
@@ -11,10 +12,10 @@ class UnixStyle {
   UnixStyle._();
 
   /// The byte value of the path separator: `/`.
-  static const int mainSep = PathBytes.slash;
+  static const int mainSep = UnixPathConstants.mainSeparator;
 
   /// The path separator as a single-character string: `/`.
-  static const String mainSepStr = '/';
+  static const String mainSepStr = UnixPathConstants.mainSeparatorStr;
 
   /// POSIX paths have no prefix component.
   static const bool hasPrefixes = false;
