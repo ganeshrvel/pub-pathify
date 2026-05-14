@@ -109,8 +109,9 @@ Import the library
 import 'package:pathify/pathify.dart';
 ```
 
-`PathBuf` is an owned, immutable path that holds raw code units — `Uint8List`
-for POSIX paths and `Uint16List` for Windows paths — and exposes operations on top.
+`PathBuf` is an owned, mutable path that holds raw code units — `Uint8List`
+for POSIX paths and `Uint16List` for Windows paths — and exposes inspection
+and mutation operations on top.
 
 
 ### From String
@@ -148,7 +149,8 @@ This means the data remains untouched, unaltered, and not normalized or sanitize
 Returns a Dart `String` only if the underlying bytes form valid Unicode.
 Returns `null` otherwise. The result is cached on first call; subsequent
 calls return the cached value without recomputing, including when the
-result is `null`.
+result is `null`. The cache is invalidated automatically whenever the path
+is mutated.
 
 ```dart
 final p = PathBuf.fromStr('/tmp/file.txt');
@@ -170,7 +172,8 @@ print(p.toStr()); // null (invalid UTF-8)
 
 Always returns a `String`. Invalid sequences are replaced with `�`. The
 result is cached on first call; subsequent calls return the cached value
-without recomputing.
+without recomputing. The cache is invalidated automatically whenever the
+path is mutated.
 
 ```dart
 final p = PathBuf.fromStr('/tmp/🚀/file.txt');
