@@ -1,8 +1,8 @@
 import 'package:pathify/src/path_bytes.dart';
 
 /// Unix path separator constants.
-final class UnixPathConstants {
-  UnixPathConstants._();
+final class UnixPaths {
+  UnixPaths._();
 
   /// The primary separator of path components for Unix-like systems.
   ///
@@ -16,8 +16,8 @@ final class UnixPathConstants {
 }
 
 /// Windows path separator and prefix constants.
-final class WindowsPathConstants {
-  WindowsPathConstants._();
+final class WindowsPaths {
+  WindowsPaths._();
 
   /// The primary separator of path components for Windows systems.
   ///

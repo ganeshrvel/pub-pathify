@@ -12,10 +12,10 @@ class UnixStyle {
   UnixStyle._();
 
   /// The byte value of the path separator: `/`.
-  static const int mainSep = UnixPathConstants.mainSeparator;
+  static const int mainSep = UnixPaths.mainSeparator;
 
   /// The path separator as a single-character string: `/`.
-  static const String mainSepStr = UnixPathConstants.mainSeparatorStr;
+  static const String mainSepStr = UnixPaths.mainSeparatorStr;
 
   /// POSIX paths have no prefix component.
   static const bool hasPrefixes = false;

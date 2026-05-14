@@ -33,17 +33,17 @@ class WindowsPrefix {
     final parser = _PrefixParser._build(path, _lookupWindow).asSlice();
 
     final afterTwoBack = parser.stripPrefix(
-      WindowsPathConstants.standardUncPrefix,
+      WindowsPaths.standardUncPrefix,
     );
     if (afterTwoBack != null) {
       // Path begins with `\\`. Branch on the next two characters to decide
       // between verbatim (`?\`), device namespace (`.\`), and UNC.
       final afterVerb = afterTwoBack.stripPrefix(
-        WindowsPathConstants.verbatimMarker,
+        WindowsPaths.verbatimMarker,
       );
       if (afterVerb != null && _isExactVerbatimPrefix(path)) {
         // Path begins with `\\?\`.
-        final afterUnc = afterVerb.stripPrefix(WindowsPathConstants.uncMarker);
+        final afterUnc = afterVerb.stripPrefix(WindowsPaths.uncMarker);
         if (afterUnc != null) {
           // `\\?\UNC\server\share`.
           final remaining = afterUnc.finish();
@@ -68,7 +68,7 @@ class WindowsPrefix {
       }
 
       final afterDevice = afterTwoBack.stripPrefix(
-        WindowsPathConstants.deviceNsMarker,
+        WindowsPaths.deviceNsMarker,
       );
       if (afterDevice != null) {
         // `\\.\<device>`.

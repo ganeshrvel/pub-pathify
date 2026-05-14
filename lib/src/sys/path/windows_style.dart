@@ -10,10 +10,10 @@ class WindowsStyle {
   WindowsStyle._();
 
   /// The code-unit value of the canonical path separator: `\`.
-  static const int mainSep = WindowsPathConstants.mainSeparator;
+  static const int mainSep = WindowsPaths.mainSeparator;
 
   /// The canonical path separator as a single-character string: `\`.
-  static const String mainSepStr = WindowsPathConstants.mainSeparatorStr;
+  static const String mainSepStr = WindowsPaths.mainSeparatorStr;
 
   /// Windows paths have prefix components (drive, UNC, verbatim, etc.).
   static const bool hasPrefixes = true;
