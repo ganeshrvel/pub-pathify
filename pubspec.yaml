@@ -1,6 +1,6 @@
 name: pathify
 description: A byte-level, cross-platform path manipulation library for Dart, ported from Rust's std::path.
-version: 1.0.3+3
+version: 1.0.3+4
 homepage: https://github.com/ganeshrvel/pub-pathify
 
 environment:
@@ -13,6 +13,7 @@ dependencies:
 dev_dependencies:
   very_good_analysis: ^10.2.0
   test: ^1.30.0
+  benchmark_harness_plus: any
 
 platforms:
   linux:
