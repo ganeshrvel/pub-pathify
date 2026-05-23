@@ -86,6 +86,12 @@ final class PathBuf {
   Option<String?> _cachedStr = const None();
 
   // ── String conversion ────────────────────────────────────────────────
+  @override
+  @Deprecated(
+    'PathBuf.toString() is unsafe for binary paths. '
+        'Use toStr() or toStringLossy() explicitly.',
+  )
+  String toString() => toStringLossy();
 
   /// Decodes the path as a Dart [String] when the code units are valid
   /// Unicode, otherwise returns `null`.

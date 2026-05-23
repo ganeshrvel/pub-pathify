@@ -1,5 +1,10 @@
 ### Changelog
 
+#### 1.0.4
+
+* Added deprecation guidance for implicit `PathBuf.toString()` usage to encourage explicit use of
+  `toStr()` or `toStringLossy()` for binary-safe path handling
+
 #### 1.0.3+4
 
 * All `_units` mutations routed through `_mutateUnits` to guarantee cache invalidation
