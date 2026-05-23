@@ -89,7 +89,7 @@ final class PathBuf {
   @override
   @Deprecated(
     'PathBuf.toString() is unsafe for binary paths. '
-        'Use toStr() or toStringLossy() explicitly.',
+    'Use toStr() or toStringLossy() explicitly.',
   )
   String toString() => toStringLossy();
 
