@@ -1,5 +1,9 @@
 ### Changelog
 
+#### 1.0.5
+
+* Added `fileNameComponent()` for retrieving the final path component as a `PathBuf`
+
 #### 1.0.4
 
 * Added deprecation guidance for implicit `PathBuf.toString()` usage to encourage explicit use of

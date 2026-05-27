@@ -323,6 +323,15 @@ final class PathBuf {
     return null;
   }
 
+  /// The final component of the path as a [PathBuf].
+  ///
+  /// Returns `null` when the path terminates in a root, prefix, or `..`.
+  PathBuf? fileNameComponent() {
+    final name = fileName();
+    if (name == null) return null;
+    return _materialize(name);
+  }
+
   /// The portion of [fileName] preceding the final dot.
   ///
   /// Returns the entire file name when there is no embedded dot, or when the

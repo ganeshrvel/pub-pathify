@@ -1208,4 +1208,111 @@ void main() {
       expect(a, equals(c));
     });
   });
+
+  group('fileNameComponent (POSIX)', () {
+    usePosix();
+
+    test('normal file', () {
+      final p = PathBuf.fromStr('/tmp/file.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), 'file.txt');
+    });
+
+    test('directory path', () {
+      final p = PathBuf.fromStr('/usr/local/bin/');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), 'bin');
+    });
+
+    test('root returns null', () {
+      final p = PathBuf.fromStr('/');
+
+      expect(p.fileNameComponent(), isNull);
+    });
+
+    test('double-dot returns null', () {
+      final p = PathBuf.fromStr('foo/..');
+
+      expect(p.fileNameComponent(), isNull);
+    });
+
+    test('emoji filename', () {
+      final p = PathBuf.fromStr('/tmp/📁_hello_🔥.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), '📁_hello_🔥.txt');
+    });
+
+    test('unicode filename', () {
+      final p = PathBuf.fromStr('/tmp/こんにちは.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), 'こんにちは.txt');
+    });
+
+    test('backslashes remain literal', () {
+      final p = PathBuf.fromStr(r'/tmp/foo\bar.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), r'foo\bar.txt');
+    });
+  });
+
+  group('fileNameComponent (Windows)', () {
+    useWindows();
+
+    test('normal file', () {
+      final p = PathBuf.fromStr(r'C:\Users\hello.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), 'hello.txt');
+    });
+
+    test('drive root returns null', () {
+      final p = PathBuf.fromStr(r'C:\');
+
+      expect(p.fileNameComponent(), isNull);
+    });
+
+    test('emoji filename', () {
+      final p = PathBuf.fromStr(r'C:\Users\🔥_rocket_📁.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), '🔥_rocket_📁.txt');
+    });
+
+    test('unicode filename', () {
+      final p = PathBuf.fromStr(r'C:\Users\你好.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), '你好.txt');
+    });
+
+    test('mixed separators', () {
+      final p = PathBuf.fromStr(r'C:\tmp/foo\bar.txt');
+
+      final component = p.fileNameComponent();
+
+      expect(component, isNotNull);
+      expect(component!.toStr(), 'bar.txt');
+    });
+  });
 }
