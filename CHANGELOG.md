@@ -1,6 +1,6 @@
 ### Changelog
 
-#### 1.0.5
+#### 1.0.5+1
 
 * Added `fileNameComponent()` for retrieving the final path component as a `PathBuf`
 
