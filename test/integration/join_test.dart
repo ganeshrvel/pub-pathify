@@ -271,6 +271,93 @@ void main() {
       expect(joined.toStringLossy(), r'C:\a\b\c');
     });
 
+    test('push backslash onto bare disk root', () {
+      final base = PathBuf.fromBytes(_w('C:'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test('push forward slash onto bare disk root', () {
+      final base = PathBuf.fromBytes(_w('C:'))
+        ..push(PathBuf.fromBytes(_w('/')));
+      expect(base.toStringLossy(), 'C:/');
+    });
+
+    test('push backslash onto disk root with trailing backslash', () {
+      final base = PathBuf.fromBytes(_w(r'C:\'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test('push forward slash onto disk root with trailing backslash', () {
+      final base = PathBuf.fromBytes(_w(r'C:\'))
+        ..push(PathBuf.fromBytes(_w('/')));
+      expect(base.toStringLossy(), 'C:/');
+    });
+
+    test('push backslash onto disk root with double trailing backslash', () {
+      final base = PathBuf.fromBytes(_w(r'C:\\'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test(
+      'push forward slash onto disk root with double trailing backslash',
+      () {
+        final base = PathBuf.fromBytes(_w(r'C:\\'))
+          ..push(PathBuf.fromBytes(_w('/')));
+        expect(base.toStringLossy(), 'C:/');
+      },
+    );
+
+    test('push backslash onto disk root with forward slash', () {
+      final base = PathBuf.fromBytes(_w('C:/'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test('push forward slash onto disk root with forward slash', () {
+      final base = PathBuf.fromBytes(_w('C:/'))
+        ..push(PathBuf.fromBytes(_w('/')));
+      expect(base.toStringLossy(), 'C:/');
+    });
+
+    test('push backslash onto disk root with double forward slash', () {
+      final base = PathBuf.fromBytes(_w('C://'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test('push forward slash onto disk root with double forward slash', () {
+      final base = PathBuf.fromBytes(_w('C://'))
+        ..push(PathBuf.fromBytes(_w('/')));
+      expect(base.toStringLossy(), 'C:/');
+    });
+
+    test('push backslash onto disk root relative dot', () {
+      final base = PathBuf.fromBytes(_w('C:.'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test('push forward slash onto disk root relative dot', () {
+      final base = PathBuf.fromBytes(_w('C:.'))
+        ..push(PathBuf.fromBytes(_w('/')));
+      expect(base.toStringLossy(), 'C:/');
+    });
+
+    test('push backslash onto disk root parent traversal', () {
+      final base = PathBuf.fromBytes(_w('C:..'))
+        ..push(PathBuf.fromBytes(_w(r'\')));
+      expect(base.toStringLossy(), r'C:\');
+    });
+
+    test('push forward slash onto disk root parent traversal', () {
+      final base = PathBuf.fromBytes(_w('C:..'))
+        ..push(PathBuf.fromBytes(_w('/')));
+      expect(base.toStringLossy(), 'C:/');
+    });
+
     // ─────────────────────────────────────────────
     // RELATIVE
     // ─────────────────────────────────────────────
